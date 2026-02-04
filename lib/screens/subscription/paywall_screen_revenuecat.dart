@@ -18,7 +18,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPackages();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPackages();
+    });
   }
 
   Future<void> _loadPackages() async {
@@ -130,14 +132,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.workspace_premium,
-            size: 48,
-            color: Colors.white,
+          child: Image.asset(
+            'assets/icons/logo.png',
+            width: 120,
+            height: 120,
+            fit: BoxFit.contain,
           ),
         ),
         const SizedBox(height: 16),
@@ -162,8 +161,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final features = [
       {'icon': Icons.auto_awesome, 'text': 'Unlimited Resume Optimizations'},
       {'icon': Icons.bolt, 'text': 'AI-Powered Suggestions'},
-      {'icon': Icons.insights, 'text': 'Advanced Analytics'},
-      {'icon': Icons.support_agent, 'text': 'Priority Support'},
+      {'icon': Icons.link, 'text': 'Tips to improve LinkedIn Profiles'},
+
     ];
 
     return Column(

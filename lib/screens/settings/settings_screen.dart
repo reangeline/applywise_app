@@ -6,6 +6,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../auth/login_screen.dart';
 import '../subscription/paywall_screen.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../legal/terms_of_service_screen.dart';
+import '../legal/refund_policy_screen.dart';
+import '../legal/cookie_policy_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -25,7 +29,7 @@ class SettingsScreen extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _buildProfileCard(authProvider, subscriptionProvider),
               const SizedBox(height: 24),
@@ -78,24 +82,70 @@ class SettingsScreen extends StatelessWidget {
                       // TODO: Help & support
                     },
                   ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Privacy Policy',
-                    subtitle: 'View our privacy policy',
-                    onTap: () {
-                      // TODO: Privacy policy
-                    },
+                  // Group policies and terms inside an ExpansionTile
+                  Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      collapsedIconColor: AppTheme.textTertiary.withOpacity(0.9),
+                      iconColor: AppTheme.textTertiary.withOpacity(0.9),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.policy,
+                          color: AppTheme.primaryColor,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        'Policies & Terms',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      childrenPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.privacy_tip_outlined, size: 18),
+                          title: const Text('Privacy Policy'),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => PrivacyPolicyScreen()),
+                          ),
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.description_outlined, size: 18),
+                          title: const Text('Terms of Service'),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => TermsOfServiceScreen()),
+                          ),
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.attach_money, size: 18),
+                          title: const Text('Refund Policy'),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => RefundPolicyScreen()),
+                          ),
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.cookie_outlined, size: 18),
+                          title: const Text('Cookie Policy'),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => CookiePolicyScreen()),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.description_outlined,
-                    title: 'Terms of Service',
-                    subtitle: 'View terms of service',
-                    onTap: () {
-                      // TODO: Terms of service
-                    },
-                  ),
+                  
                 ],
               ),
               const SizedBox(height: 24),
@@ -130,84 +180,87 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildProfileCard(AuthProvider authProvider, SubscriptionProvider subscriptionProvider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(40),
-            ),
-            child: Center(
-              child: Text(
-                authProvider.user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
+    return SizedBox(
+      width: double.infinity,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: AppTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(40),
+              ),
+              child: Center(
+                child: Text(
+                  authProvider.user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryColor,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            authProvider.user?.name ?? 'User',
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+            const SizedBox(height: 16),
+            Text(
+              authProvider.user?.name ?? 'User',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            authProvider.user?.email ?? '',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.white70,
+            const SizedBox(height: 4),
+            Text(
+              authProvider.user?.email ?? '',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.white70,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  subscriptionProvider.isPro
-                      ? Icons.workspace_premium
-                      : Icons.workspace_premium_outlined,
-                  size: 16,
-                  color: subscriptionProvider.isPro
-                      ? AppTheme.primaryColor
-                      : AppTheme.textSecondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  subscriptionProvider.isPro ? 'Premium' : 'Free',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    subscriptionProvider.isPro
+                        ? Icons.workspace_premium
+                        : Icons.workspace_premium_outlined,
+                    size: 16,
                     color: subscriptionProvider.isPro
                         ? AppTheme.primaryColor
                         : AppTheme.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    subscriptionProvider.isPro ? 'Premium' : 'Free',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: subscriptionProvider.isPro
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

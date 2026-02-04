@@ -91,21 +91,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primaryColor,
+      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.workspace_premium,
-              size: 80,
-              color: Colors.white,
+            Image.asset(
+              'assets/icons/logo.png',
+              width: 120,
+              height: 120,
+
             ),
             const SizedBox(height: 24),
             Text(
-              'ApplyWise',
+              'Hirefy',
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                color: Colors.white,
+                color: AppTheme.primaryColor,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -113,12 +114,12 @@ class _SplashScreenState extends State<SplashScreen> {
             Text(
               'AI Resume Optimizer',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: Colors.white70,
+                color: AppTheme.primaryColor,
               ),
             ),
             const SizedBox(height: 48),
             const CircularProgressIndicator(
-              color: Colors.white,
+              color: AppTheme.primaryColor,
             ),
           ],
         ),

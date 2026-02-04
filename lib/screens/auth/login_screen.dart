@@ -30,17 +30,17 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 48),
+              const SizedBox(height: 12),
               _buildHeader(),
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
               _buildForm(),
               const SizedBox(height: 24),
               _buildLoginButton(),
               const SizedBox(height: 24),
-              _buildDivider(),
-              const SizedBox(height: 24),
-              _buildSocialButtons(),
-              const SizedBox(height: 32),
+              // _buildDivider(),
+              // const SizedBox(height: 24),
+              // _buildSocialButtons(),
+              // const SizedBox(height: 32),
               _buildSignUpPrompt(),
             ],
           ),
@@ -53,18 +53,21 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       children: [
         Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: AppTheme.cardShadow,
+          width: 120,
+          height: 120,
+          child: Image.asset(
+            'assets/icons/logo.png',
+            width: 80,
+            height: 80,
+            fit: BoxFit.contain,
           ),
-          child: const Icon(
-            Icons.workspace_premium,
-            size: 40,
-            color: Colors.white,
+        ),
+        Text(
+          'Hirefy',
+          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            color: AppTheme.primaryColor,
           ),
+          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         Text(

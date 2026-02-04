@@ -7,6 +7,7 @@ import '../../providers/resume_provider.dart';
 import '../subscription/paywall_screen.dart';
 import '../auth/verify_code_screen.dart';
 import '../resume/optimize_info_screen.dart';
+import '../resume/linkedin_opt_select_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -395,30 +396,30 @@ class _HomeDashboardState extends State<HomeDashboard> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 16),
-        _buildActionCard(
-          icon: Icons.add_circle,
-          title: 'Optimize New Resume',
-          description: 'Upload and optimize your resume',
-          color: AppTheme.primaryColor,
-          onTap: () {
-            // Navigate to optimize screen
-          },
-        ),
-        const SizedBox(height: 12),
         if (!isPro) ...[
           _buildActionCard(
-            icon: Icons.workspace_premium,
-            title: 'View Plans',
-            description: 'Explore premium features',
+            icon: Icons.shopping_cart_outlined,
+            title: 'Buy Optimizations',
+            description: 'Purchase additional optimizations',
             color: AppTheme.accentColor,
             onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PaywallScreen()),
-              );
+              // Intentionally empty for now — only the field
             },
           ),
           const SizedBox(height: 12),
         ],
+        _buildActionCard(
+          icon: Icons.person_search,
+          title: 'AI LinkedIn Optimization',
+          description: 'Optimize your LinkedIn profile with AI',
+          color: AppTheme.primaryColor,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LinkedInOptSelectScreen()),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
         _buildActionCard(
           icon: Icons.info_outline,
           title: 'How Optimization Works',

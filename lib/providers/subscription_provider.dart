@@ -3,6 +3,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../models/subscription.dart';
 import '../services/subscription_service.dart';
 import '../services/revenue_cat_service.dart';
+import '../services/storage_service.dart';
 
 class SubscriptionProvider with ChangeNotifier {
   final SubscriptionService _subscriptionService = SubscriptionService();
@@ -21,6 +22,16 @@ class SubscriptionProvider with ChangeNotifier {
   Future<void> loadSubscription() async {
     _isLoading = true;
     notifyListeners();
+
+    // Não tentar carregar subscription se não houver usuário logado
+    final storage = StorageService();
+    final currentUserId = storage.getUserId();
+    if (currentUserId == null || currentUserId.isEmpty) {
+      print('⚠️  loadSubscription aborted: no user logged in');
+      _isLoading = false;
+      notifyListeners();
+      return;
+    }
 
     try {
       // Load from backend

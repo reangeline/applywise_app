@@ -32,6 +32,8 @@ dependencies:
   
   # URL Launcher (for web checkout)
   url_launcher: ^6.2.4
+  # In-app WebView for cookie policy
+  webview_flutter: ^3.0.4
   
   # Loading indicators
   flutter_spinkit: ^5.2.0
@@ -41,6 +43,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.10.0
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icons/icon.png"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
