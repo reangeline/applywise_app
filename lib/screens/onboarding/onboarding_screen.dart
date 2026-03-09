@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../../config/theme.dart';
+import '../../config/transitions.dart';
+import '../../services/analytics_service.dart';
 import '../../services/storage_service.dart';
 import '../auth/login_screen.dart';
 
@@ -14,6 +16,18 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Log the first onboarding step on entry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AnalyticsService.instance.logOnboardingStepViewed(
+        stepIndex: 0,
+        stepTitle: _pages[0].title,
+      );
+    });
+  }
 
   final List<OnboardingPage> _pages = [
     OnboardingPage(
@@ -37,7 +51,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       imagePath: 'assets/images/onbording/onbording_4.png',
       title: 'Land more interviews',
       description:
-          'Stand out from the competiton with optimized applications',
+          'Stand out from the competition with optimized applications',
     ),
   ];
 
@@ -54,6 +68,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   setState(() {
                     _currentPage = index;
                   });
+                  AnalyticsService.instance.logOnboardingStepViewed(
+                    stepIndex: index,
+                    stepTitle: _pages[index].title,
+                  );
                 },
                 itemCount: _pages.length,
                 itemBuilder: (context, index) {
@@ -70,23 +88,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_currentPage == _pages.length - 1) {
-                          _navigateToLogin();
-                        } else {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        }
-                      },
+                      onPressed: _handleNextOrGetStarted,
                       child: Text(_currentPage == _pages.length - 1 ? 'Get Started' : 'Next'),
                     ),
                   ),
                   const SizedBox(height: 16),
                   if (_currentPage < _pages.length - 1)
                     TextButton(
-                      onPressed: _navigateToLogin,
+                      onPressed: () {
+                        AnalyticsService.instance.logOnboardingSkipped(
+                          atStep: _currentPage,
+                        );
+                        _navigateToLogin();
+                      },
                       child: const Text('Skip'),
                     ),
                 ],
@@ -185,12 +199,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _navigateToLogin() async {
     await StorageService().setFirstLaunchDone();
-    
+
     if (!mounted) return;
-    
+
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      AppTransitions.fadeSlide(const LoginScreen()),
     );
+  }
+
+  void _handleNextOrGetStarted() {
+    if (_currentPage == _pages.length - 1) {
+      AnalyticsService.instance.logOnboardingCompleted();
+      _navigateToLogin();
+    } else {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   @override

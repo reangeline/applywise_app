@@ -12,9 +12,10 @@ class AuthService {
     required String email,
     required String password,
     required String name,
+    required String termsAcceptedAt,
+    required String termsVersion,
   }) async {
     try {
-      print('🔵 SignUp: Enviando requisição para $email');
       
       final response = await _apiService.post(
         AppConstants.signUpEndpoint,
@@ -22,11 +23,11 @@ class AuthService {
           'email': email,
           'password': password,
           'name': name,
+          'terms_accepted_at': termsAcceptedAt,
+          'terms_version': termsVersion,
         },
       );
 
-      print('🔵 SignUp: Resposta recebida');
-      print('📥 Response keys: ${response.keys.toList()}');
 
       // Backend pode retornar em PascalCase OU snake_case
       final accessToken = response['access_token'] ?? response['AccessToken'] as String?;
@@ -40,7 +41,6 @@ class AuthService {
 
       // Decodificar IDToken (JWT) para pegar informações do usuário
       final decodedToken = JwtDecoder.decode(idToken);
-      print('🔓 Token decodificado: ${decodedToken.keys.toList()}');
 
       // Extrair informações do usuário do token
       final userId = decodedToken['sub'] as String;
@@ -54,13 +54,9 @@ class AuthService {
         name: userName,
       );
 
-      print('✅ SignUp: Usuário criado: ${user.email}');
       if (message != null) {
-        print('📧 Mensagem do backend: $message');
       }
 
-      print('💾 Salvando tokens...');
-      print('💾 ID Token (primeiros 50 chars): ${idToken.substring(0, 50)}...');
 
       // Salvar tokens e dados do usuário
       await _storageService.saveAccessToken(accessToken);
@@ -73,9 +69,7 @@ class AuthService {
       // Ler email_verified do response do backend (do DynamoDB!)
       final emailVerifiedBackend = response['email_verified'] as bool? ?? emailVerified;
       await _storageService.saveEmailVerified(emailVerifiedBackend);
-      print('✅ Flag email_verified salva (do backend): $emailVerifiedBackend');
       
-      print('✅ Tokens salvos com sucesso!');
 
       return AuthResult(
         success: true,
@@ -85,7 +79,6 @@ class AuthService {
         message: message,
       );
     } catch (e) {
-      print('❌ SignUp Error: $e');
       return AuthResult(
         success: false,
         error: _formatError(e),
@@ -98,7 +91,6 @@ class AuthService {
     required String password,
   }) async {
     try {
-      print('🔵 SignIn: Enviando requisição para $email');
       
       final response = await _apiService.post(
         AppConstants.signInEndpoint,
@@ -108,8 +100,6 @@ class AuthService {
         },
       );
 
-      print('🔵 SignIn: Resposta recebida');
-      print('📥 Response keys: ${response.keys.toList()}');
 
       // Backend pode retornar em PascalCase OU snake_case
       final accessToken = response['access_token'] ?? response['AccessToken'] as String?;
@@ -122,7 +112,6 @@ class AuthService {
 
       // Decodificar IDToken (JWT) para pegar informações do usuário
       final decodedToken = JwtDecoder.decode(idToken);
-      print('🔓 Token decodificado: ${decodedToken.keys.toList()}');
 
       // Extrair informações do usuário do token
       final userId = decodedToken['sub'] as String;
@@ -135,10 +124,7 @@ class AuthService {
         name: userName,
       );
 
-      print('✅ SignIn: Login realizado: ${user.email}');
 
-      print('💾 Salvando tokens...');
-      print('💾 ID Token (primeiros 50 chars): ${idToken.substring(0, 50)}...');
 
       // Salvar tokens e dados do usuário
       await _storageService.saveAccessToken(accessToken);
@@ -151,9 +137,7 @@ class AuthService {
       // Ler email_verified do response do backend (do DynamoDB!)
       final emailVerifiedBackend = response['email_verified'] as bool? ?? false;
       await _storageService.saveEmailVerified(emailVerifiedBackend);
-      print('✅ Flag email_verified salva (do backend): $emailVerifiedBackend');
       
-      print('✅ Tokens salvos com sucesso!');
 
       return AuthResult(
         success: true,
@@ -162,7 +146,6 @@ class AuthService {
         refreshToken: refreshToken,
       );
     } catch (e) {
-      print('❌ SignIn Error: $e');
       return AuthResult(
         success: false,
         error: _formatError(e),
@@ -172,11 +155,9 @@ class AuthService {
 
   Future<String?> refreshToken() async {
     try {
-      print('🔵 RefreshToken: Iniciando...');
       
       final currentRefreshToken = await _storageService.getRefreshToken();
       if (currentRefreshToken == null) {
-        print('⚠️  RefreshToken: Nenhum refresh token encontrado');
         return null;
       }
 
@@ -195,21 +176,41 @@ class AuthService {
         if (newRefreshToken != null) {
           await _storageService.saveRefreshToken(newRefreshToken);
         }
-        print('✅ RefreshToken: Tokens atualizados');
         return newAccessToken;
       }
 
       return null;
     } catch (e) {
-      print('❌ RefreshToken Error: $e');
       return null;
     }
   }
 
   Future<void> signOut() async {
-    print('🔵 SignOut: Limpando dados...');
     await _storageService.clearAll();
-    print('✅ SignOut: Logout realizado');
+  }
+
+  Future<AuthResult> deleteAccount() async {
+    try {
+
+      final accessToken = await _storageService.getAccessToken();
+      if (accessToken == null) {
+        throw Exception('Not authenticated');
+      }
+
+      await _apiService.delete(
+        AppConstants.deleteAccountEndpoint,
+        token: accessToken,
+      );
+
+      await _storageService.clearAll();
+
+      return AuthResult(success: true);
+    } catch (e) {
+      return AuthResult(
+        success: false,
+        error: _formatError(e),
+      );
+    }
   }
 
   Future<AuthResult> confirmSignUp({
@@ -217,9 +218,8 @@ class AuthService {
     required String code,
   }) async {
     try {
-      print('🔵 ConfirmSignUp: Verificando código para $email');
       
-      final response = await _apiService.post(
+      await _apiService.post(
         AppConstants.confirmSignUpEndpoint,
         {
           'email': email,
@@ -227,11 +227,9 @@ class AuthService {
         },
       );
 
-      print('✅ ConfirmSignUp: Email verificado com sucesso!');
 
       return AuthResult(success: true);
     } catch (e) {
-      print('❌ ConfirmSignUp Error: $e');
       return AuthResult(
         success: false,
         error: _formatError(e),
@@ -243,24 +241,59 @@ class AuthService {
     required String email,
   }) async {
     try {
-      print('🔵 ResendCode: Reenviando código para $email');
       
-      final response = await _apiService.post(
+      await _apiService.post(
         AppConstants.resendCodeEndpoint,
         {
           'email': email,
         },
       );
 
-      print('✅ ResendCode: Código reenviado!');
 
       return AuthResult(success: true);
     } catch (e) {
-      print('❌ ResendCode Error: $e');
       return AuthResult(
         success: false,
         error: _formatError(e),
       );
+    }
+  }
+
+  Future<AuthResult> forgotPassword({
+    required String email,
+  }) async {
+    try {
+
+      await _apiService.post(
+        AppConstants.forgotPasswordEndpoint,
+        {'email': email},
+      );
+
+      return AuthResult(success: true);
+    } catch (e) {
+      return AuthResult(success: false, error: _formatError(e));
+    }
+  }
+
+  Future<AuthResult> confirmForgotPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+
+      await _apiService.post(
+        AppConstants.confirmForgotPasswordEndpoint,
+        {
+          'email': email,
+          'code': code,
+          'new_password': newPassword,
+        },
+      );
+
+      return AuthResult(success: true);
+    } catch (e) {
+      return AuthResult(success: false, error: _formatError(e));
     }
   }
 
@@ -285,7 +318,6 @@ class AuthService {
   }
 
   Future<void> markEmailAsVerified() async {
-    print('✅ Marcando email como verificado localmente');
     await _storageService.saveEmailVerified(true);
   }
 
@@ -293,7 +325,6 @@ class AuthService {
     // Primeiro checar flag local
     final localFlag = _storageService.isEmailVerified();
     if (localFlag) {
-      print('✅ Email verificado (flag local)');
       return true;
     }
 
@@ -303,10 +334,8 @@ class AuthService {
       try {
         final decoded = JwtDecoder.decode(idToken);
         final verified = decoded['email_verified'] as bool? ?? false;
-        print('🔍 Email verificado (JWT): $verified');
         return verified;
       } catch (e) {
-        print('⚠️  Erro ao decodificar JWT: $e');
         return false;
       }
     }
@@ -316,12 +345,10 @@ class AuthService {
 
   Future<bool> fetchEmailVerifiedFromBackend() async {
     try {
-      print('🔍 Consultando /user/me para status de email...');
 
       // Pegar access token
       final accessToken = await _storageService.getAccessToken();
       if (accessToken == null) {
-        print('⚠️  Sem access token, não pode consultar /user/me');
         return await isEmailVerified();
       }
 
@@ -330,19 +357,15 @@ class AuthService {
         token: accessToken,
       );
 
-      print('📥 /user/me response keys: ${response.keys.toList()}');
 
       final emailVerified = response['email_verified'] as bool? ?? false;
 
-      print('✅ Email verificado (backend /user/me): $emailVerified');
 
       // Salvar flag local
       await _storageService.saveEmailVerified(emailVerified);
-      print('💾 Flag local atualizada: $emailVerified');
 
       return emailVerified;
     } catch (e) {
-      print('❌ Erro ao consultar /user/me: $e');
 
       final lower = e.toString().toLowerCase();
 
@@ -351,25 +374,19 @@ class AuthService {
           lower.contains('invalid credentials') ||
           lower.contains('invalid token')) {
         try {
-          print('🔵 fetchEmailVerifiedFromBackend: tentando refresh do token...');
           final newAccessToken = await refreshToken();
           if (newAccessToken != null) {
-            print('🔵 fetchEmailVerifiedFromBackend: reconsultando /user/me com novo token');
             final retryResponse = await _apiService.get(
               AppConstants.userMeEndpoint,
               token: newAccessToken,
             );
 
-            print('📥 /user/me (retry) response keys: ${retryResponse.keys.toList()}');
             final emailVerified = retryResponse['email_verified'] as bool? ?? false;
             await _storageService.saveEmailVerified(emailVerified);
-            print('💾 Flag local atualizada após retry: $emailVerified');
             return emailVerified;
           } else {
-            print('⚠️  Refresh não retornou novo access token');
           }
         } catch (e2) {
-          print('❌ Erro ao reconsultar /user/me após refresh: $e2');
         }
       }
 
@@ -381,7 +398,6 @@ class AuthService {
   String _formatError(dynamic error) {
     final errorString = error.toString();
     
-    print('🔍 Formatting error: $errorString');
     
     // Remover "Exception: " do início
     String cleanError = errorString;
@@ -399,7 +415,9 @@ class AuthService {
     }
     
     if (lowerError.contains('notauthorizedexception') ||
-        lowerError.contains('not authorized')) {
+        lowerError.contains('not authorized') ||
+        lowerError.contains('unauthorized') ||
+        lowerError.contains('invalid credentials')) {
       return 'Invalid email or password';
     }
     
@@ -414,7 +432,10 @@ class AuthService {
     }
     
     if (lowerError.contains('network error') ||
-        lowerError.contains('connection')) {
+        lowerError.contains('socketexception') ||
+        lowerError.contains('failed host lookup') ||
+        lowerError.contains('connection refused') ||
+        (lowerError.contains('connection') && !lowerError.contains('invalid credentials'))) {
       return 'Connection error. Please check your internet.';
     }
     

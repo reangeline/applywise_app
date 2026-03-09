@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "965130705733",
+    "project_id": "applywise-35cc7",
+    "storage_bucket": "applywise-35cc7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965130705733:android:1c75469fdd0f67a2d77c2c",
+        "android_client_info": {
+          "package_name": "careers.hirefy.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDItJQMzv_jdUe5qYt_Qxa_zlFbO8qFq_0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

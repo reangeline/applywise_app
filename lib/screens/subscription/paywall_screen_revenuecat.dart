@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import '../../config/theme.dart';
 import '../../providers/subscription_provider.dart';
+import '../../widgets/app_spinner.dart';
+import '../../config/transitions.dart';
+import '../../services/analytics_service.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../legal/terms_of_service_screen.dart';
 
 class PaywallScreen extends StatefulWidget {
   const PaywallScreen({super.key});
@@ -18,6 +24,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService.instance.logPaywallViewed(source: 'paywall_screen');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadPackages();
     });
@@ -45,7 +52,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
     
     if (subscriptionProvider.isLoading) {
       return Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
         appBar: AppBar(
           title: const Text('Upgrade to PRO'),
           leading: IconButton(
@@ -54,14 +60,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
           ),
         ),
         body: const Center(
-          child: CircularProgressIndicator(),
+          child: AppSpinner(),
         ),
       );
     }
 
     if (subscriptionProvider.packages.isEmpty) {
       return Scaffold(
-        backgroundColor: AppTheme.backgroundColor,
         appBar: AppBar(
           title: const Text('Upgrade to PRO'),
           leading: IconButton(
@@ -73,7 +78,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.error_outline,
                 size: 64,
                 color: AppTheme.errorColor,
@@ -81,7 +86,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
               const SizedBox(height: 16),
               const Text('No plans available'),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Please try again later',
                 style: TextStyle(color: AppTheme.textSecondary),
               ),
@@ -97,7 +102,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: const Text('Upgrade to PRO'),
         leading: IconButton(
@@ -215,12 +219,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isSelected
                     ? AppTheme.primaryColor
-                    : AppTheme.borderColor,
+                    : Theme.of(context).colorScheme.outline,
                 width: isSelected ? 2 : 1,
               ),
               boxShadow: isSelected ? AppTheme.cardShadow : null,
@@ -316,14 +320,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           disabledBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.5),
         ),
         child: _isPurchasing
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
+            ? const AppSpinnerSmall()
             : const Text(
                 'Subscribe Now',
                 style: TextStyle(
@@ -343,12 +340,43 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Widget _buildLegalText() {
-    return Text(
-      'Auto-renewable subscription. Cancel anytime. Terms and privacy policy apply.',
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: AppTheme.textTertiary,
-      ),
+    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppTheme.textTertiary,
+    );
+    final linkStyle = textStyle?.copyWith(
+      color: AppTheme.primaryColor,
+      decoration: TextDecoration.underline,
+    );
+    return RichText(
       textAlign: TextAlign.center,
+      text: TextSpan(
+        style: textStyle,
+        children: [
+          const TextSpan(
+            text: 'Auto-renewable subscription. Cancel anytime. By subscribing you agree to our ',
+          ),
+          TextSpan(
+            text: 'Terms of Service',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => Navigator.push(
+                    context,
+                    AppTransitions.slideRight(TermsOfServiceScreen()),
+                  ),
+          ),
+          const TextSpan(text: ' and '),
+          TextSpan(
+            text: 'Privacy Policy',
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => Navigator.push(
+                    context,
+                    AppTransitions.slideRight(PrivacyPolicyScreen()),
+                  ),
+          ),
+          const TextSpan(text: '.'),
+        ],
+      ),
     );
   }
 
@@ -356,6 +384,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (_selectedPackage == null) return;
 
     setState(() => _isPurchasing = true);
+
+    final packageId = _selectedPackage!.identifier;
+    AnalyticsService.instance.logSubscriptionStarted(packageId: packageId);
 
     final subscriptionProvider = Provider.of<SubscriptionProvider>(
       context,
@@ -369,11 +400,13 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isPurchasing = false);
 
     if (success) {
+      AnalyticsService.instance.logSubscriptionPurchased(packageId: packageId);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('✅ Welcome to PRO!'),
+        const SnackBar(
+          content: Text('✅ Welcome to PRO!'),
           backgroundColor: AppTheme.successColor,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
 
@@ -383,9 +416,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
         Navigator.pop(context);
       }
     } else {
+      AnalyticsService.instance.logSubscriptionFailed(packageId: packageId);
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Purchase failed. Please try again.'),
+        const SnackBar(
+          content: Text('Purchase failed. Please try again.'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -407,9 +442,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isPurchasing = false);
 
     if (success) {
+      AnalyticsService.instance.logPurchasesRestored();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('✅ Purchases restored!'),
+        const SnackBar(
+          content: Text('✅ Purchases restored!'),
           backgroundColor: AppTheme.successColor,
         ),
       );

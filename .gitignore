@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment config files (contain API keys — manter apenas localmente)
+config/dev.json
+config/prod.json

@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/transitions.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/resume_provider.dart';
+import '../../providers/notification_provider.dart';
+import '../../services/analytics_service.dart';
+import '../../services/widget_service.dart';
 import '../subscription/paywall_screen.dart';
+import '../subscription/credits_paywall_screen.dart';
 import '../auth/verify_code_screen.dart';
 import '../resume/optimize_info_screen.dart';
 import '../resume/linkedin_opt_select_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -18,7 +24,7 @@ class HomeDashboard extends StatefulWidget {
 
 class _HomeDashboardState extends State<HomeDashboard> {
   bool _emailVerified = true; // Assumir true por padrão
-  
+
   @override
   void initState() {
     super.initState();
@@ -26,33 +32,58 @@ class _HomeDashboardState extends State<HomeDashboard> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
       _checkEmailVerification();
+      _initializeNotifications();
     });
+  }
+  
+  Future<void> _initializeNotifications() async {
+    try {
+      final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+      if (!notificationProvider.isInitialized) {
+        await notificationProvider.initialize();
+      }
+    } catch (e) {
+      // Não falhar - app funciona sem notificações
+    }
   }
 
   Future<void> _loadData() async {
     final resumeProvider = Provider.of<ResumeProvider>(context, listen: false);
-    await resumeProvider.loadResumes();
+    final subscriptionProvider =
+        Provider.of<SubscriptionProvider>(context, listen: false);
+
+    await Future.wait([
+      resumeProvider.loadResumes(),
+      subscriptionProvider.loadSubscription(),
+    ]);
+
+    // Push latest data to iOS home screen widget
+    if (mounted) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      WidgetService.update(
+        userName: authProvider.user?.name?.split(' ').first ?? 'Hirefy',
+        isPro: subscriptionProvider.isPro,
+        credits: subscriptionProvider.credits,
+        resumeCount: resumeProvider.resumes.length,
+      );
+    }
   }
 
   Future<void> _checkEmailVerification() async {
-    print('🔍 Iniciando verificação de email...');
-    
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     try {
       // Consultar backend via /user/me (fonte da verdade!)
       final verified = await authProvider.fetchEmailVerifiedFromBackend();
-      
-      print('✅ Email verificado: $verified');
-      print('📧 Banner será ${verified ? "ESCONDIDO" : "EXIBIDO"}');
-      
+
+
       if (mounted) {
         setState(() {
           _emailVerified = verified;
         });
       }
     } catch (e) {
-      print('❌ Erro ao verificar email: $e');
       // Se der erro, assumir que está verificado (evitar bloquear usuário)
       if (mounted) {
         setState(() {
@@ -68,8 +99,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
     final resumeProvider = Provider.of<ResumeProvider>(context);
 
-    return Scaffold(      
-      backgroundColor: AppTheme.backgroundColor,
+    return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadData,
@@ -80,19 +110,19 @@ class _HomeDashboardState extends State<HomeDashboard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(authProvider),
-                
+
                 // Banner de verificação de email (só aparece se não verificado)
                 if (!_emailVerified) ...[
                   const SizedBox(height: 16),
                   _buildEmailVerificationBanner(authProvider),
                 ],
-                
+
                 const SizedBox(height: 24),
                 _buildSubscriptionCard(subscriptionProvider),
                 const SizedBox(height: 24),
-                _buildStatsCards(resumeProvider),
-                const SizedBox(height: 24),
                 _buildQuickActions(subscriptionProvider),
+                const SizedBox(height: 24),
+                _buildOptimizationSuggestions(resumeProvider),
               ],
             ),
           ),
@@ -144,16 +174,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 Text(
                   'Verify your email',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Check your inbox to unlock all features',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
                 ),
               ],
             ),
@@ -162,15 +192,15 @@ class _HomeDashboardState extends State<HomeDashboard> {
           ElevatedButton(
             onPressed: () async {
               final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => VerifyCodeScreen(
+                AppTransitions.fadeSlide(
+                  VerifyCodeScreen(
                     email: authProvider.user?.email ?? '',
-                    password: '', // Não precisa da senha - usuário já está logado
+                    password: '',
                     name: authProvider.user?.name ?? '',
                   ),
                 ),
               );
-              
+
               // Se voltou com sucesso (email verificado), recarregar status
               if (result == true) {
                 _checkEmailVerification();
@@ -196,49 +226,97 @@ class _HomeDashboardState extends State<HomeDashboard> {
   }
 
   Widget _buildHeader(AuthProvider authProvider) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Consumer<NotificationProvider>(
+      builder: (context, notificationProvider, _) {
+        // Fallback se o provider não estiver inicializado
+        final unreadCount = notificationProvider.isInitialized 
+            ? notificationProvider.unreadCount 
+            : 0;
+        
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Welcome back,',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppTheme.textSecondary,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome back,',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  authProvider.user?.name ?? 'User',
+                  style: Theme.of(context).textTheme.displaySmall,
+                ),
+              ],
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  AppTransitions.fadeSlide(const NotificationsScreen()),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: AppTheme.cardShadow,
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      Icons.notifications_outlined,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: AppTheme.errorColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadCount > 9 ? '9+' : '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              authProvider.user?.name ?? 'User',
-              style: Theme.of(context).textTheme.displaySmall,
-            ),
           ],
-        ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: AppTheme.cardShadow,
-          ),
-          child: const Icon(
-            Icons.notifications_outlined,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
   Widget _buildSubscriptionCard(SubscriptionProvider subscriptionProvider) {
     final isPro = subscriptionProvider.isPro;
+    final credits = subscriptionProvider.credits;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: isPro ? AppTheme.primaryGradient : null,
-        color: isPro ? null : AppTheme.surfaceColor,
+        color: isPro ? null : Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: AppTheme.cardShadow,
       ),
@@ -251,7 +329,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
               Row(
                 children: [
                   Icon(
-                    isPro ? Icons.workspace_premium : Icons.workspace_premium_outlined,
+                    isPro
+                        ? Icons.workspace_premium
+                        : Icons.workspace_premium_outlined,
                     color: isPro ? Colors.white : AppTheme.primaryColor,
                     size: 28,
                   ),
@@ -259,25 +339,42 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   Text(
                     isPro ? 'Premium Active' : 'Free Plan',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: isPro ? Colors.white : AppTheme.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
+                          color: isPro
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ],
               ),
-              if (!isPro)
+              // Sempre mostrar créditos se houver
+              if (credits > 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withValues(alpha: 0.1),
+                    color: isPro
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    'Limited',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.warningColor,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        size: 16,
+                        color: isPro ? Colors.white : AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$credits credits',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color:
+                                  isPro ? Colors.white : AppTheme.primaryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
                   ),
                 ),
             ],
@@ -285,11 +382,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
           const SizedBox(height: 12),
           Text(
             isPro
-                ? 'Unlimited resume optimizations & premium features'
-                : '1 optimization per month',
+                ? credits > 0
+                    ? 'Unlimited optimizations + $credits bonus credits reserved'
+                    : 'Unlimited resume optimizations & premium features'
+                : '$credits optimization${credits != 1 ? 's' : ''} available',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: isPro ? Colors.white70 : AppTheme.textSecondary,
-            ),
+                  color: isPro ? Colors.white70 : AppTheme.textSecondary,
+                ),
           ),
           if (!isPro) ...[
             const SizedBox(height: 16),
@@ -297,8 +396,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
+                  AnalyticsService.instance.logUpgradeTapped(source: 'dashboard');
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PaywallScreen()),
+                    AppTransitions.slideUp(const PaywallScreen()),
                   );
                 },
                 style: ElevatedButton.styleFrom(
@@ -313,74 +413,290 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  Widget _buildStatsCards(ResumeProvider resumeProvider) {
-    final resumeCount = resumeProvider.resumes.length;
-    final avgScore = resumeProvider.resumes.isEmpty
-        ? 0.0
-        : resumeProvider.resumes.map((r) => r.score).reduce((a, b) => a + b) / resumeCount;
+  Widget _buildOptimizationSuggestions(ResumeProvider resumeProvider) {
+    // Coletar todas as sugestões dos currículos otimizados
+    final allSuggestions = <String>[];
 
-    return Row(
+    for (final resume in resumeProvider.resumes) {
+      if (resume.type == 'optimized' && resume.suggestions != null) {
+        allSuggestions.addAll(resume.suggestions!);
+      }
+    }
+
+    // Se não houver sugestões, mostrar mensagem
+    if (allSuggestions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.lightbulb_outline,
+                size: 48,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No optimization suggestions yet',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Optimize your resume to get personalized suggestions',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mostrar as sugestões
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.description,
-            title: 'Resumes',
-            value: resumeCount.toString(),
-            color: AppTheme.secondaryColor,
-          ),
+        Row(
+          children: [
+            Icon(
+              Icons.auto_awesome,
+              color: AppTheme.primaryColor,
+              size: 24,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Recent Optimization Suggestions',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildStatCard(
-            icon: Icons.trending_up,
-            title: 'Avg Score',
-            value: avgScore.toStringAsFixed(1),
-            color: AppTheme.successColor,
+        const SizedBox(height: 16),
+        // Mostrar no máximo as 5 últimas sugestões
+        ...allSuggestions
+            .take(5)
+            .map((suggestion) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: AppTheme.cardShadow,
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.check_circle_outline,
+                            size: 18,
+                            color: AppTheme.primaryColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            suggestion,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  height: 1.5,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ))
+            .toList(),
+        if (allSuggestions.length > 5) ...[
+          const SizedBox(height: 8),
+          Center(
+            child: GestureDetector(
+              onTap: () => _showAllSuggestions(context, allSuggestions),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.expand_more,
+                      size: 18,
+                      color: AppTheme.primaryColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '+${allSuggestions.length - 5} more suggestions',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
 
-  Widget _buildStatCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 24),
+  void _showAllSuggestions(BuildContext context, List<String> suggestions) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+          child: Column(
+            children: [
+              // Handle
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome, color: AppTheme.primaryColor, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'All Optimization Suggestions',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      '${suggestions.length}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Tips to improve your resume and increase your ATS score',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1),
+              // List
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  itemCount: suggestions.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.primaryColor.withValues(alpha: 0.15),
+                        ),
+                        boxShadow: AppTheme.cardShadow,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              '${index + 1}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              suggestions[index],
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(height: 1.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppTheme.textSecondary,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -402,8 +718,15 @@ class _HomeDashboardState extends State<HomeDashboard> {
             title: 'Buy Optimizations',
             description: 'Purchase additional optimizations',
             color: AppTheme.accentColor,
-            onTap: () {
-              // Intentionally empty for now — only the field
+            onTap: () async {
+              final result = await Navigator.of(context).push(
+                AppTransitions.slideUp(const CreditsPaywallScreen()),
+              );
+
+              // Se a compra foi bem-sucedida, recarregar créditos
+              if (result == true && mounted) {
+                await subscriptionProvider.refreshCredits();
+              }
             },
           ),
           const SizedBox(height: 12),
@@ -415,7 +738,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           color: AppTheme.primaryColor,
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const LinkedInOptSelectScreen()),
+              AppTransitions.fadeSlide(const LinkedInOptSelectScreen()),
             );
           },
         ),
@@ -427,7 +750,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
           color: AppTheme.secondaryColor,
           onTap: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const OptimizeInfoScreen()),
+              AppTransitions.fadeSlide(const OptimizeInfoScreen()),
             );
           },
         ),
@@ -448,7 +771,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           boxShadow: AppTheme.cardShadow,
         ),
@@ -475,16 +798,16 @@ class _HomeDashboardState extends State<HomeDashboard> {
                   Text(
                     description,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textSecondary,
-                    ),
+                          color: AppTheme.textSecondary,
+                        ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              color: AppTheme.textTertiary,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
             ),
           ],
         ),

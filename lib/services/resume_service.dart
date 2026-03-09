@@ -8,19 +8,25 @@ class ResumeService {
   final StorageService _storageService = StorageService();
 
   Future<Resume?> optimizeResume({
-    required String resumeText,
+    required String resumeId,
     required String jobDescription,
+    String? targetCompany,
+    String? targetRole,
   }) async {
     try {
       final token = await _storageService.getAccessToken();
       if (token == null) return null;
 
+      final body = <String, dynamic>{
+        'resume_id': resumeId,
+        'job_description': jobDescription,
+      };
+      if (targetCompany != null) body['target_company'] = targetCompany;
+      if (targetRole != null) body['target_role'] = targetRole;
+
       final response = await _apiService.post(
         AppConstants.optimizeResumeEndpoint,
-        {
-          'resume_text': resumeText,
-          'job_description': jobDescription,
-        },
+        body,
         token: token,
       );
 
@@ -30,20 +36,243 @@ class ResumeService {
     }
   }
 
+  Future<String> startLinkedInOptimize({required String resumeId}) async {
+    final token = await _storageService.getAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final response = await _apiService.post(
+      AppConstants.linkedinOptimizeEndpoint,
+      {'resume_id': resumeId},
+      token: token,
+    );
+
+    final jobId = response['job_id']?.toString() ?? response['id']?.toString();
+    if (jobId == null) throw Exception('No job_id in LinkedIn optimize response');
+    return jobId;
+  }
+
+  /// Polls the job status until completed or failed (max ~2 min).
+  Future<LinkedInOptimizedData> pollLinkedInJob(String jobId) async {
+    final token = await _storageService.getAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    const maxAttempts = 24;
+    const interval = Duration(seconds: 5);
+
+    for (var i = 0; i < maxAttempts; i++) {
+      await Future.delayed(interval);
+
+      final jobResponse = await _apiService.get(
+        '${AppConstants.optimizeJobsEndpoint}/$jobId',
+        token: token,
+      );
+
+      final status = jobResponse['status']?.toString().toLowerCase();
+
+      if (status == 'failed' || status == 'error') {
+        throw Exception('LinkedIn optimization job failed');
+      }
+
+      if (status == 'completed') {
+        // The job response may contain the full optimized resume payload
+        if (jobResponse['parsed_data'] != null) {
+          return LinkedInOptimizedData.fromJson(jobResponse);
+        }
+
+        // The individual endpoint is deprecated – use the list endpoint and filter by ID
+        final optimizedResumeId =
+            jobResponse['optimized_resume_id']?.toString() ??
+            jobResponse['id']?.toString();
+
+        final listResponse = await _apiService.getRaw(
+          '${AppConstants.resumesEndpoint}/optimized',
+          token: token,
+        );
+
+        if (listResponse is List && listResponse.isNotEmpty) {
+          final items = listResponse.cast<Map<String, dynamic>>();
+
+          // Try to match by ID first
+          if (optimizedResumeId != null) {
+            final match = items.where(
+              (r) => (r['id'] ?? r['ID'])?.toString() == optimizedResumeId,
+            );
+            if (match.isNotEmpty) {
+              return LinkedInOptimizedData.fromJson(match.first);
+            }
+          }
+
+          // Fall back to the most recent LinkedIn-type entry
+          final linkedInItems = items.where((r) {
+            final pd = r['parsed_data'] as Map?;
+            final type = (r['type'] ?? r['Type'])?.toString();
+            return type == 'linkedin' ||
+                pd != null && pd['type']?.toString() == 'linkedin';
+          });
+          if (linkedInItems.isNotEmpty) {
+            return LinkedInOptimizedData.fromJson(linkedInItems.last);
+          }
+        }
+
+        throw Exception('Could not find completed LinkedIn optimization');
+      }
+    }
+
+    throw Exception('LinkedIn optimization timed out');
+  }
+
+  Future<Resume> createManualResume({
+    required Map<String, dynamic> resumeData,
+  }) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await _apiService.post(
+        AppConstants.createManualResumeEndpoint,
+        resumeData,
+        token: token,
+      );
+
+      return Resume.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to create manual resume: $e');
+    }
+  }
+
   Future<List<Resume>> getResumes() async {
     try {
       final token = await _storageService.getAccessToken();
       if (token == null) return [];
 
-      final response = await _apiService.get(
+
+      final response = await _apiService.getRaw(
         AppConstants.resumesEndpoint,
         token: token,
       );
 
-      final List<dynamic> resumesList = response as List<dynamic>? ?? [];
-      return resumesList.map((json) => Resume.fromJson(json)).toList();
+
+      final optimizedResponse = await _apiService.getRaw(
+        '${AppConstants.resumesEndpoint}/optimized',
+        token: token,
+      );
+
+
+      final List<dynamic> rawResumes = [];
+      if (response is List) {
+        rawResumes.addAll(response);
+      }
+      if (optimizedResponse is List) {
+        rawResumes.addAll(optimizedResponse);
+      }
+
+
+      if (rawResumes.isEmpty) return [];
+
+      final resumes = rawResumes.map((json) => Resume.fromJson(json)).toList();
+
+      return resumes;
     } catch (e) {
       return [];
+    }
+  }
+
+  Future<Resume?> getResumeById(String resumeId, {String? type}) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) return null;
+
+      // Usar endpoint específico baseado no tipo do currículo
+      String endpoint;
+      if (type == 'manual') {
+        endpoint = '${AppConstants.createManualResumeEndpoint}/$resumeId';
+      } else {
+        // Para otimizados ou quando tipo não especificado
+        endpoint = '${AppConstants.resumesEndpoint}/optimized/$resumeId';
+      }
+
+      try {
+        final response = await _apiService.get(
+          endpoint,
+          token: token,
+        );
+
+
+        final resume = Resume.fromJson(response);
+        
+        return resume;
+      } catch (endpointError) {
+        rethrow;
+      }
+    } catch (e) {
+      throw Exception('Failed to get resume: $e');
+    }
+  }
+
+  Future<void> deleteResume(String resumeId, {String? type}) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      // Usar endpoint padrão para deletar ambos os tipos
+      final endpoint = '${AppConstants.resumesEndpoint}/$resumeId';
+
+
+      await _apiService.delete(
+        endpoint,
+        token: token,
+      );
+    } catch (e) {
+      throw Exception('Failed to delete resume: $e');
+    }
+  }
+
+  Future<Resume> updateManualResume({
+    required String resumeId,
+    required Map<String, dynamic> resumeData,
+  }) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+      final response = await _apiService.put(
+        '${AppConstants.createManualResumeEndpoint}/$resumeId',
+        resumeData,
+        token: token,
+      );
+
+      return Resume.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update manual resume: $e');
+    }
+  }
+
+  Future<Resume> updateOptimizedResume({
+    required String resumeId,
+    required Map<String, dynamic> resumeData,
+  }) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) {
+        throw Exception('Not authenticated');
+      }
+
+
+      final response = await _apiService.put(
+        '${AppConstants.resumesEndpoint}/optimized/$resumeId',
+        resumeData,
+        token: token,
+      );
+
+      return Resume.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update optimized resume: $e');
     }
   }
 }

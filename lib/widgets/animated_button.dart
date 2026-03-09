@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../config/constants.dart';
 import '../config/curves.dart';
+import '../widgets/app_spinner.dart';
 
 class AnimatedButton extends StatefulWidget {
   final String text;
@@ -95,10 +96,7 @@ class _AnimatedButtonState extends State<AnimatedButton>
               ? const SizedBox(
                   height: 24,
                   width: 24,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2.5,
-                  ),
+                  child: AppSpinnerSmall(),
                 )
               : Row(
                   mainAxisSize: MainAxisSize.min,

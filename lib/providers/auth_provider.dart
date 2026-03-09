@@ -11,6 +11,15 @@ class AuthProvider with ChangeNotifier {
   AuthProvider() {
     // Register global token refresher so ApiService can retry on 401
     ApiService().registerTokenRefresher(_authService.refreshToken);
+    // Register logout callback so ApiService can force logout when refresh fails
+    ApiService().registerLogoutCallback(_handleSessionExpired);
+  }
+
+  Future<void> _handleSessionExpired() async {
+    await _authService.signOut();
+    _user = null;
+    _isAuthenticated = false;
+    notifyListeners();
   }
 
   User? _user;
@@ -51,6 +60,8 @@ class AuthProvider with ChangeNotifier {
     required String email,
     required String password,
     required String name,
+    required String termsAcceptedAt,
+    required String termsVersion,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -59,6 +70,8 @@ class AuthProvider with ChangeNotifier {
       email: email,
       password: password,
       name: name,
+      termsAcceptedAt: termsAcceptedAt,
+      termsVersion: termsVersion,
     );
 
     if (result.success && result.user != null) {
@@ -116,6 +129,23 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<AuthResult> deleteAccount() async {
+    _isLoading = true;
+    notifyListeners();
+
+    final result = await _authService.deleteAccount();
+
+    if (result.success) {
+      _user = null;
+      _isAuthenticated = false;
+    }
+
+    _isLoading = false;
+    notifyListeners();
+
+    return result;
+  }
+
   Future<AuthResult> confirmSignUp({
     required String email,
     required String code,
@@ -156,5 +186,21 @@ class AuthProvider with ChangeNotifier {
 
   Future<bool> isEmailVerified() async {
     return await _authService.isEmailVerified();
+  }
+
+  Future<AuthResult> forgotPassword({required String email}) async {
+    return await _authService.forgotPassword(email: email);
+  }
+
+  Future<AuthResult> confirmForgotPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    return await _authService.confirmForgotPassword(
+      email: email,
+      code: code,
+      newPassword: newPassword,
+    );
   }
 }

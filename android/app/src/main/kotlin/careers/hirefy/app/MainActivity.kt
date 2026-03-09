@@ -1,4 +1,4 @@
-package com.example.applywise_app
+package careers.hirefy.app
 
 import io.flutter.embedding.android.FlutterActivity
 

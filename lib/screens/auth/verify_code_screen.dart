@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../widgets/app_spinner.dart';
 import '../../providers/auth_provider.dart';
-import '../home/home_screen.dart';
 
 class VerifyCodeScreen extends StatefulWidget {
   final String email;
@@ -23,11 +24,40 @@ class VerifyCodeScreen extends StatefulWidget {
 class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
   final _codeController = TextEditingController();
   bool _isLoading = false;
+  bool _isResending = false;
+
+  // Countdown para reenvio
+  static const int _resendCooldown = 60;
+  int _secondsRemaining = _resendCooldown;
+  Timer? _resendTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startResendTimer();
+  }
+
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _secondsRemaining = _resendCooldown);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_secondsRemaining > 0) {
+          _secondsRemaining--;
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -46,16 +76,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
               const SizedBox(height: 24),
               _buildVerifyButton(),
               const SizedBox(height: 16),
-              // Removido botão Resend - usuário já está confirmado no Cognito
-              Center(
-                child: Text(
-                  'Didn\'t receive the code? Check your spam folder',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              _buildResendSection(),
             ],
           ),
         ),
@@ -67,7 +88,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
+        const Icon(
           Icons.email_outlined,
           size: 64,
           color: AppTheme.primaryColor,
@@ -96,7 +117,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           ),
           child: Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.info_outline,
                 size: 20,
                 color: AppTheme.primaryColor,
@@ -137,20 +158,20 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           decoration: InputDecoration(
             hintText: '000000',
             hintStyle: TextStyle(
-              color: AppTheme.textTertiary,
+              color: Theme.of(context).hintColor,
               letterSpacing: 8,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppTheme.primaryColor),
+              borderSide: const BorderSide(color: AppTheme.primaryColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppTheme.borderColor),
+              borderSide: const BorderSide(color: AppTheme.borderColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppTheme.primaryColor, width: 2),
+              borderSide: const BorderSide(color: AppTheme.primaryColor, width: 2),
             ),
           ),
           maxLength: 6,
@@ -169,27 +190,70 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
+            ? const AppSpinnerSmall()
             : const Text('Verify Code'),
       ),
     );
   }
 
-  Widget _buildResendButton() {
-    return TextButton(
-      onPressed: _handleResendCode,
-      child: Text(
-        'Didn\'t receive the code? Resend',
-        style: TextStyle(color: AppTheme.primaryColor),
-      ),
+  Widget _buildResendSection() {
+    final canResend = _secondsRemaining == 0;
+    return Column(
+      children: [
+        if (!canResend)
+          Text(
+            'Resend code in ${_secondsRemaining}s',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          )
+        else
+          TextButton(
+            onPressed: _isResending ? null : _handleResend,
+            child: _isResending
+                ? const AppSpinner(size: 16)
+                : const Text('Resend Code'),
+          ),
+        const SizedBox(height: 4),
+        Text(
+          "Didn't receive the code? Check your spam folder",
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppTheme.textTertiary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
+  }
+
+  Future<void> _handleResend() async {
+    setState(() => _isResending = true);
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final result = await authProvider.resendConfirmationCode(
+      email: widget.email,
+    );
+
+    if (!mounted) return;
+    setState(() => _isResending = false);
+
+    if (result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Verification code resent! Check your inbox.'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      _startResendTimer();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'Failed to resend code'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   Future<void> _handleVerify() async {
@@ -197,8 +261,8 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter the verification code'),
+        const SnackBar(
+          content: Text('Please enter the verification code'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -207,8 +271,8 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
 
     if (code.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Verification code must be 6 digits'),
+        const SnackBar(
+          content: Text('Verification code must be 6 digits'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -230,10 +294,10 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     if (result.success) {
       // Email verificado com sucesso!
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('✅ Email verified successfully!'),
+        const SnackBar(
+          content: Text('✅ Email verified successfully!'),
           backgroundColor: AppTheme.successColor,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
 
@@ -255,31 +319,9 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     }
   }
 
-  Future<void> _handleResendCode() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final result = await authProvider.resendConfirmationCode(email: widget.email);
-
-    if (!mounted) return;
-
-    if (result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Verification code sent! Check your email.'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.error ?? 'Failed to resend code'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    }
-  }
-
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _codeController.dispose();
     super.dispose();
   }

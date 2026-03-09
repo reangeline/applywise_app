@@ -10,8 +10,15 @@ class ApiService {
   // Optional token refresher callback. Should return a new access token or null.
   Future<String?> Function()? _tokenRefresher;
 
+  // Optional logout callback. Called when refresh fails (invalid session).
+  Future<void> Function()? _logoutCallback;
+
   void registerTokenRefresher(Future<String?> Function() refresher) {
     _tokenRefresher = refresher;
+  }
+
+  void registerLogoutCallback(Future<void> Function() callback) {
+    _logoutCallback = callback;
   }
 
   // Single-flight guard: if a refresh is in progress, other callers await the same future.
@@ -33,8 +40,13 @@ class ApiService {
     _refreshFuture = _tokenRefresher!();
     try {
       final result = await _refreshFuture;
+      if (result == null) {
+        // Refresh failed — session is invalid, force logout
+        await _logoutCallback?.call();
+      }
       return result;
     } catch (e) {
+      await _logoutCallback?.call();
       return null;
     } finally {
       _refreshFuture = null;
@@ -48,8 +60,6 @@ class ApiService {
   }) async {
     try {
       final url = '${AppConstants.apiBaseUrl}$endpoint';
-      print('📡 POST: $url');
-      print('📤 Body: ${jsonEncode(body)}');
       
       http.Response response = await http.post(
         Uri.parse(url),
@@ -60,15 +70,14 @@ class ApiService {
         body: jsonEncode(body),
       );
 
-      print('📥 Status: ${response.statusCode}');
-      print('📥 Body: ${response.body}');
 
       // Retry on 401 using registered refresher (single-flight)
-      if (response.statusCode == 401 && _tokenRefresher != null) {
-        print('🔴 POST received 401, attempting token refresh...');
+      // Skip retry for the refresh endpoint itself to prevent deadlock
+      if (response.statusCode == 401 &&
+          _tokenRefresher != null &&
+          endpoint != AppConstants.refreshTokenEndpoint) {
         final newToken = await _performRefresh();
         if (newToken != null) {
-          print('🔵 POST retrying with new token');
           response = await http.post(
             Uri.parse(url),
             headers: {
@@ -77,14 +86,12 @@ class ApiService {
             },
             body: jsonEncode(body),
           );
-          print('📥 (retry) Status: ${response.statusCode}');
-          print('📥 (retry) Body: ${response.body}');
         }
       }
 
       return _handleResponse(response);
     } catch (e) {
-      print('❌ Network error: $e');
+      if (e is Exception) rethrow;
       throw Exception('Network error: $e');
     }
   }
@@ -104,10 +111,8 @@ class ApiService {
 
       // Retry on 401 using registered refresher (single-flight)
       if (response.statusCode == 401 && _tokenRefresher != null) {
-        print('🔴 GET received 401, attempting token refresh...');
         final newToken = await _performRefresh();
         if (newToken != null) {
-          print('🔵 GET retrying with new token');
           response = await http.get(
             Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
             headers: {
@@ -115,13 +120,52 @@ class ApiService {
               'Authorization': 'Bearer $newToken',
             },
           );
-          print('📥 (retry) Status: ${response.statusCode}');
-          print('📥 (retry) Body: ${response.body}');
         }
       }
 
       return _handleResponse(response);
     } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Network error: $e');
+    }
+  }
+
+  // Método específico para retornar listas diretamente
+  Future<dynamic> getRaw(
+    String endpoint, {
+    required String token,
+  }) async {
+    try {
+      http.Response response = await http.get(
+        Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      // Retry on 401
+      if (response.statusCode == 401 && _tokenRefresher != null) {
+        final newToken = await _performRefresh();
+        if (newToken != null) {
+          response = await http.get(
+            Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $newToken',
+            },
+          );
+        }
+      }
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return [];
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Request failed with status ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Network error: $e');
     }
   }
@@ -143,10 +187,8 @@ class ApiService {
 
       // Retry on 401 using registered refresher (single-flight)
       if (response.statusCode == 401 && _tokenRefresher != null) {
-        print('🔴 PUT received 401, attempting token refresh...');
         final newToken = await _performRefresh();
         if (newToken != null) {
-          print('🔵 PUT retrying with new token');
           response = await http.put(
             Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
             headers: {
@@ -155,13 +197,12 @@ class ApiService {
             },
             body: jsonEncode(body),
           );
-          print('📥 (retry) Status: ${response.statusCode}');
-          print('📥 (retry) Body: ${response.body}');
         }
       }
 
       return _handleResponse(response);
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Network error: $e');
     }
   }
@@ -181,10 +222,8 @@ class ApiService {
 
       // Retry on 401 using registered refresher (single-flight)
       if (response.statusCode == 401 && _tokenRefresher != null) {
-        print('🔴 DELETE received 401, attempting token refresh...');
         final newToken = await _performRefresh();
         if (newToken != null) {
-          print('🔵 DELETE retrying with new token');
           response = await http.delete(
             Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
             headers: {
@@ -192,46 +231,39 @@ class ApiService {
               'Authorization': 'Bearer $newToken',
             },
           );
-          print('📥 (retry) Status: ${response.statusCode}');
-          print('📥 (retry) Body: ${response.body}');
         }
       }
 
       return _handleResponse(response);
     } catch (e) {
+      if (e is Exception) rethrow;
       throw Exception('Network error: $e');
     }
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
-    print('🔍 handleResponse - Status: ${response.statusCode}');
-    print('🔍 handleResponse - Body: ${response.body}');
     
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
-        print('⚠️  Warning: Response body is empty, returning {}');
         return {};
       }
       
       try {
         final decoded = jsonDecode(response.body);
         
-        // Se a resposta é uma lista (ex: lista de currículos vazia)
+        // Se a resposta é uma lista (ex: lista de currículos)
         if (decoded is List) {
-          print('📋 Response is a List with ${decoded.length} items');
-          return {'data': decoded}; // Empacotar lista em um Map
+          return {'data': decoded}; // Não empacotar, retornar como está
         }
         
         // Se é um Map, retornar normalmente
         if (decoded is Map<String, dynamic>) {
-          print('✅ Response decoded successfully');
           return decoded;
         }
         
         // Caso contrário, tentar converter
         return {'data': decoded};
       } catch (e) {
-        print('❌ Error decoding response: $e');
         throw Exception('Failed to decode response: $e');
       }
     } else {
@@ -241,7 +273,6 @@ class ApiService {
       if (response.body.isNotEmpty) {
         try {
           final errorBody = jsonDecode(response.body);
-          print('❌ Error body: $errorBody');
           
           // Extrair mensagem de erro do formato AWS
           if (errorBody is Map) {
@@ -257,7 +288,6 @@ class ApiService {
         }
       }
       
-      print('❌ API Error: $errorMessage');
       
       // Lançar exceção com mensagem clara
       if (response.statusCode == 401) {

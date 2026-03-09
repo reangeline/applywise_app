@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "dev (local backend + RevenueCat test)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define-from-file=config/dev.json"
+      ]
+    },
+    {
+      "name": "prod (AWS backend + RevenueCat real)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--dart-define-from-file=config/prod.json"
+      ]
+    }
+  ]
+}

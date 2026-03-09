@@ -13,11 +13,13 @@ class SubscriptionProvider with ChangeNotifier {
   bool _isLoading = false;
   bool _isPro = false;
   List<Package> _packages = [];
+  int _credits = 0;
 
   Subscription? get subscription => _subscription;
   bool get isLoading => _isLoading;
   bool get isPro => _isPro;
   List<Package> get packages => _packages;
+  int get credits => _credits;
 
   Future<void> loadSubscription() async {
     _isLoading = true;
@@ -27,7 +29,6 @@ class SubscriptionProvider with ChangeNotifier {
     final storage = StorageService();
     final currentUserId = storage.getUserId();
     if (currentUserId == null || currentUserId.isEmpty) {
-      print('⚠️  loadSubscription aborted: no user logged in');
       _isLoading = false;
       notifyListeners();
       return;
@@ -43,12 +44,15 @@ class SubscriptionProvider with ChangeNotifier {
       
       // Load packages
       _packages = await _revenueCatService.getAvailablePackages();
+      
+      // Load credits (sempre carregar, mesmo se for PRO)
+      // Créditos ficam salvos para quando a assinatura expirar
+      _credits = await _subscriptionService.getCredits();
 
-      print('✅ Subscription loaded: isPro=$_isPro, packages=${_packages.length}');
     } catch (e) {
-      print('❌ Erro ao carregar subscription: $e');
       _isPro = false;
       _packages = [];
+      _credits = 0;
     }
 
     _isLoading = false;
@@ -72,7 +76,6 @@ class SubscriptionProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Erro na compra: $e');
       _isLoading = false;
       notifyListeners();
       return false;
@@ -96,7 +99,6 @@ class SubscriptionProvider with ChangeNotifier {
 
       return success;
     } catch (e) {
-      print('❌ Erro ao restaurar: $e');
       _isLoading = false;
       notifyListeners();
       return false;
@@ -109,5 +111,14 @@ class SubscriptionProvider with ChangeNotifier {
 
   bool canAccessProFeature() {
     return _isPro;
+  }
+
+  /// Recarregar créditos (útil após compra)
+  Future<void> refreshCredits() async {
+    try {
+      _credits = await _subscriptionService.getCredits();
+      notifyListeners();
+    } catch (e) {
+    }
   }
 }

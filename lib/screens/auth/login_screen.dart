@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/transitions.dart';
+import '../../widgets/app_spinner.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../services/analytics_service.dart';
 import '../home/home_screen.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,9 +25,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    AnalyticsService.instance.logScreenView('login');
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -52,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       children: [
-        Container(
+        SizedBox(
           width: 120,
           height: 120,
           child: Image.asset(
@@ -151,7 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                // TODO: Forgot password
+                Navigator.of(context).push(
+                  AppTransitions.slideRight(const ForgotPasswordScreen()),
+                );
               },
               child: Text(
                 'Forgot Password?',
@@ -177,60 +188,14 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
+            ? const AppSpinnerSmall()
             : const Text('Log In'),
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        const Expanded(child: Divider()),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            'Or sign in with',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-        const Expanded(child: Divider()),
-      ],
-    );
-  }
+  // Social sign-in and divider widgets removed (unused)
 
-  Widget _buildSocialButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // TODO: Google sign in
-            },
-            icon: Icon(Icons.g_mobiledata, color: Colors.red[700]),
-            label: const Text('Google'),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // TODO: Phone sign in
-            },
-            icon: const Icon(Icons.phone, color: AppTheme.secondaryColor),
-            label: const Text('Phone'),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildSignUpPrompt() {
     return Row(
@@ -243,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
         TextButton(
           onPressed: () {
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SignUpScreen()),
+              AppTransitions.slideRight(const SignUpScreen()),
             );
           },
           child: Text(
@@ -274,11 +239,23 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
+      await AnalyticsService.instance.logLogin();
+
       // Load subscription
       final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
       await subscriptionProvider.loadSubscription();
 
       if (!mounted) return;
+
+      // Identify the user in Analytics
+      final user = authProvider.user;
+      if (user != null) {
+        await AnalyticsService.instance.setUserId(user.id);
+        await AnalyticsService.instance.setUserProperty(
+          name: 'subscription_tier',
+          value: subscriptionProvider.isPro ? 'pro' : 'free',
+        );
+      }
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const HomeScreen()),

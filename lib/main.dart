@@ -1,20 +1,35 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'config/transitions.dart';
 import 'config/theme.dart';
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
-import 'providers/subscription_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/resume_provider.dart';
-import 'screens/onboarding/onboarding_screen.dart';
+import 'providers/subscription_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+import 'services/analytics_service.dart';
 import 'services/storage_service.dart';
+import 'services/widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // Initialize Firebase (required by Analytics, Messaging, etc.)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   // Initialize storage
   await StorageService().init();
-  
+
+  // Initialize home widget shared container (non-fatal if native side not configured yet)
+  await WidgetService.init();
+
   runApp(const MyApp());
 }
 
@@ -28,12 +43,22 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => ResumeProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: 'ApplyWise',
-        theme: AppTheme.lightTheme,
-        debugShowCheckedModeBanner: false,
-        home: const SplashScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'Hirefy',
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.themeMode,
+          debugShowCheckedModeBanner: false,
+          navigatorObservers: [
+            AnalyticsService.instance.observer,
+          ],
+          home: const SplashScreen(),
+        ),
       ),
     );
   }
@@ -58,7 +83,15 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkInitialRoute() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
     await authProvider.checkAuthStatus();
+
+    // Inicializa notificações cedo para mostrar o prompt de permissão
+    try {
+      await notificationProvider.initialize();
+    } catch (e) {
+      debugPrint('⚠️ Notifications init skipped: $e');
+    }
 
     if (!mounted) return;
 
@@ -68,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (isFirstLaunch) {
       // Show onboarding
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        AppTransitions.fadeSlide(const OnboardingScreen()),
       );
     } else if (authProvider.isAuthenticated) {
       // Go to home
@@ -78,12 +111,12 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
       
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        AppTransitions.fadeSlide(const HomeScreen()),
       );
     } else {
       // Show login
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        AppTransitions.fadeSlide(const LoginScreen()),
       );
     }
   }
@@ -91,7 +124,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -33,17 +33,12 @@ class StorageService {
   }
 
   Future<void> saveIdToken(String token) async {
-    print('💾 StorageService: Salvando ID token...');
     await _secureStorage.write(key: 'id_token', value: token);
-    print('✅ StorageService: ID token salvo!');
   }
 
   Future<String?> getIdToken() async {
-    print('🔍 StorageService: Buscando ID token...');
     final token = await _secureStorage.read(key: 'id_token');
-    print('🔍 StorageService: ID token encontrado: ${token != null ? "SIM" : "NÃO"}');
     if (token != null) {
-      print('🔍 StorageService: Token (primeiros 50 chars): ${token.substring(0, token.length > 50 ? 50 : token.length)}...');
     }
     return token;
   }
@@ -81,13 +76,11 @@ class StorageService {
 
   // Email Verified Flag
   Future<void> saveEmailVerified(bool verified) async {
-    print('💾 StorageService: Salvando flag EmailVerified = $verified');
     await _prefs?.setBool('email_verified', verified);
   }
 
   bool isEmailVerified() {
     final verified = _prefs?.getBool('email_verified') ?? false;
-    print('🔍 StorageService: EmailVerified flag = $verified');
     return verified;
   }
 

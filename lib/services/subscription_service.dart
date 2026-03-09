@@ -39,4 +39,35 @@ class SubscriptionService {
       return null;
     }
   }
+
+  Future<int> getCredits() async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) return 0;
+
+      
+      final response = await _apiService.get(
+        '/api/v1/subscription/credits',
+        token: token,
+      );
+
+      
+      // Tratar diferentes tipos de resposta
+      final creditsValue = response['credits'];
+      
+      int credits = 0;
+      if (creditsValue is int) {
+        credits = creditsValue;
+      } else if (creditsValue is double) {
+        credits = creditsValue.toInt();
+      } else if (creditsValue is String) {
+        credits = int.tryParse(creditsValue) ?? 0;
+      }
+      
+      
+      return credits;
+    } catch (e) {
+      return 0;
+    }
+  }
 }

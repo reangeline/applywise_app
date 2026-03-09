@@ -216,4 +216,130 @@ class AppTheme {
       ),
     );
   }
+
+  // ─── Dark Mode ────────────────────────────────────────────────────────────
+  static const Color darkBackground  = Color(0xFF0F1117);
+  static const Color darkSurface     = Color(0xFF1A1D27);
+  static const Color darkCard        = Color(0xFF222535);
+  static const Color darkTextPrimary = Color(0xFFF9FAFB);
+  static const Color darkTextSecondary = Color(0xFF9CA3AF);
+  static const Color darkBorder      = Color(0xFF2D3144);
+
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: darkBackground,
+      hintColor: const Color(0xFF6B7280),
+
+      colorScheme: const ColorScheme.dark(
+        primary: primaryColor,
+        secondary: secondaryColor,
+        error: errorColor,
+        surface: darkSurface,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: darkTextPrimary,
+        onError: Colors.white,
+      ),
+
+      textTheme: GoogleFonts.interTextTheme(
+        ThemeData(brightness: Brightness.dark).textTheme,
+      ).copyWith(
+        displayLarge: GoogleFonts.inter(
+          fontSize: 32, fontWeight: FontWeight.bold, color: darkTextPrimary),
+        displayMedium: GoogleFonts.inter(
+          fontSize: 28, fontWeight: FontWeight.bold, color: darkTextPrimary),
+        displaySmall: GoogleFonts.inter(
+          fontSize: 24, fontWeight: FontWeight.bold, color: darkTextPrimary),
+        headlineMedium: GoogleFonts.inter(
+          fontSize: 20, fontWeight: FontWeight.w600, color: darkTextPrimary),
+        titleLarge: GoogleFonts.inter(
+          fontSize: 18, fontWeight: FontWeight.w600, color: darkTextPrimary),
+        titleMedium: GoogleFonts.inter(
+          fontSize: 16, fontWeight: FontWeight.w600, color: darkTextPrimary),
+        bodyLarge: GoogleFonts.inter(
+          fontSize: 16, fontWeight: FontWeight.normal, color: darkTextPrimary),
+        bodyMedium: GoogleFonts.inter(
+          fontSize: 14, fontWeight: FontWeight.normal, color: darkTextSecondary),
+        labelLarge: GoogleFonts.inter(
+          fontSize: 14, fontWeight: FontWeight.w600, color: Colors.white),
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primaryColor,
+          side: const BorderSide(color: darkBorder, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkCard,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: darkBorder, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: darkBorder, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryColor, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: errorColor, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: errorColor, width: 2),
+        ),
+        labelStyle: GoogleFonts.inter(fontSize: 14, color: darkTextSecondary),
+        hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF6B7280)),
+      ),
+
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: Colors.black.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: darkSurface,
+      ),
+
+      appBarTheme: AppBarTheme(
+        elevation: 0,
+        backgroundColor: darkSurface,
+        foregroundColor: darkTextPrimary,
+        centerTitle: true,
+        titleTextStyle: GoogleFonts.inter(
+          fontSize: 18, fontWeight: FontWeight.w600, color: darkTextPrimary),
+      ),
+
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkSurface,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: darkTextSecondary,
+        elevation: 8,
+        type: BottomNavigationBarType.fixed,
+      ),
+    );
+  }
 }

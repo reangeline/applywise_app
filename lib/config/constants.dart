@@ -1,7 +1,10 @@
 class AppConstants {
-  // API Configuration
-  static const String apiBaseUrl =
-      'https://bo0aj4wdk2.execute-api.us-east-1.amazonaws.com';
+  // API Configuration — injetado via --dart-define-from-file
+  // Dev:  config/dev.json  |  Prod: config/prod.json
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://bo0aj4wdk2.execute-api.us-east-1.amazonaws.com',
+  );
 
   // API Endpoints
   static const String signUpEndpoint = '/api/v1/auth/signup';
@@ -9,15 +12,24 @@ class AppConstants {
   static const String refreshTokenEndpoint = '/api/v1/auth/refresh';
   static const String confirmSignUpEndpoint = '/api/v1/auth/confirm';
   static const String resendCodeEndpoint = '/api/v1/auth/resend-code';
+  static const String forgotPasswordEndpoint = '/api/v1/auth/forgot-password';
+  static const String confirmForgotPasswordEndpoint = '/api/v1/auth/confirm-forgot-password';
   static const String subscriptionEndpoint = '/api/v1/subscription';
   static const String checkoutEndpoint = '/api/v1/subscription/checkout';
   static const String optimizeResumeEndpoint = '/api/v1/resumes/optimize';
+  static const String linkedinOptimizeEndpoint = '/api/v1/resumes/linkedin/optimize';
+  static const String optimizeJobsEndpoint = '/api/v1/resumes/optimize/jobs';
   static const String resumesEndpoint = '/api/v1/resumes';
+  static const String createManualResumeEndpoint = '/api/v1/resumes/manual';
   static const String userMeEndpoint = '/api/v1/users/me';
+  static const String deleteAccountEndpoint = '/api/v1/users/me';
 
 
-  // RevenueCat Configuration
-  static const String revenueCatApiKey = 'test_xiwTkstoCxAIGUNpCJSRHIIJDZD';
+  // RevenueCat Configuration — injetado via --dart-define-from-file
+  static const String revenueCatApiKey = String.fromEnvironment(
+    'REVENUE_CAT_API_KEY',
+    defaultValue: 'appl_KfkcroykzlCplzCmUOBTPwWAlDS',
+  );
   
   // RevenueCat Products
   static const String monthlyProductId = 'monthly';
@@ -25,7 +37,7 @@ class AppConstants {
   static const String yearlyProductId = 'yearly';
   
   // RevenueCat Entitlement
-  static const String proEntitlement = 'pro';
+  static const String proEntitlement = 'ApplyWise Premium';
 
   // Subscription Plans
   static const String freePlan = 'free';
@@ -44,8 +56,9 @@ class AppConstants {
   static const String isFirstLaunchKey = 'is_first_launch';
 
   // App Info
-  static const String appName = 'ApplyWise';
+  static const String appName = 'Hirefy';
   static const String appVersion = '1.0.0';
+  static const String termsVersion = '1.0';
 
   // Animation Durations
   static const Duration shortAnimation = Duration(milliseconds: 200);

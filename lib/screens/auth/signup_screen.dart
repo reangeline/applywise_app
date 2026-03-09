@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/transitions.dart';
+import '../../widgets/app_spinner.dart';
+import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../services/analytics_service.dart';
 import '../home/home_screen.dart';
+import '../legal/terms_of_service_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -19,11 +24,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _termsAccepted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.instance.logScreenView('signup');
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -181,7 +192,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.info_outline,
                 size: 16,
                 color: AppTheme.primaryColor,
@@ -212,7 +223,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       padding: const EdgeInsets.only(top: 3),
       child: Row(
         children: [
-          Icon(
+          const Icon(
             Icons.check_circle_outline,
             size: 13,
             color: AppTheme.textTertiary,
@@ -242,31 +253,66 @@ class _SignUpScreenState extends State<SignUpScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
+            ? const AppSpinnerSmall()
             : const Text('Sign Up'),
       ),
     );
   }
 
   Widget _buildTerms() {
-    return Text(
-      'By signing up, you agree to our Terms & Conditions',
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: AppTheme.textTertiary,
-      ),
-      textAlign: TextAlign.center,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Checkbox(
+          value: _termsAccepted,
+          activeColor: AppTheme.primaryColor,
+          onChanged: (value) {
+            setState(() => _termsAccepted = value ?? false);
+          },
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                AppTransitions.slideRight(const TermsOfServiceScreen()),
+              );
+            },
+            child: RichText(
+              text: TextSpan(
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textTertiary,
+                ),
+                children: const [
+                  TextSpan(text: 'I have read and agree to the '),
+                  TextSpan(
+                    text: 'Terms of Service',
+                    style: TextStyle(
+                      color: AppTheme.primaryColor,
+                      decoration: TextDecoration.underline,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (!_termsAccepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please accept the Terms of Service to continue.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -275,6 +321,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
+      termsAcceptedAt: DateTime.now().toUtc().toIso8601String(),
+      termsVersion: AppConstants.termsVersion,
     );
 
     if (!mounted) return;
@@ -282,11 +330,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
+      await AnalyticsService.instance.logSignUp();
+
       // Load subscription
       final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
       await subscriptionProvider.loadSubscription();
 
       if (!mounted) return;
+
+      // Identify the new user in Analytics (new users always start as free)
+      final user = authProvider.user;
+      if (user != null) {
+        await AnalyticsService.instance.setUserId(user.id);
+        await AnalyticsService.instance.setUserProperty(
+          name: 'subscription_tier',
+          value: 'free',
+        );
+      }
 
       // Mostrar mensagem do backend (se houver)
       if (result.message != null) {

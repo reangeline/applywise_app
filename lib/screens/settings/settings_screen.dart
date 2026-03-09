@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../config/transitions.dart';
+import '../../services/analytics_service.dart';
+import '../../widgets/app_spinner.dart';
 import '../auth/login_screen.dart';
 import '../subscription/paywall_screen.dart';
 import '../legal/privacy_policy_screen.dart';
@@ -20,7 +27,6 @@ class SettingsScreen extends StatelessWidget {
     final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: const Text('Profile & Settings'),
         automaticallyImplyLeading: false,
@@ -45,8 +51,9 @@ class SettingsScreen extends StatelessWidget {
                       subtitle: 'Unlock all features',
                       color: AppTheme.primaryColor,
                       onTap: () {
+                        AnalyticsService.instance.logUpgradeTapped(source: 'settings');
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const PaywallScreen()),
+                          AppTransitions.slideUp(const PaywallScreen()),
                         );
                       },
                     ),
@@ -64,22 +71,22 @@ class SettingsScreen extends StatelessWidget {
                 context,
                 title: 'General',
                 items: [
-                  _buildSettingItem(
-                    context,
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    subtitle: 'Manage notifications',
-                    onTap: () {
-                      // TODO: Notifications settings
-                    },
-                  ),
+                  const _NotificationToggleItem(),
+                  const _DarkModeToggleItem(),
                   _buildSettingItem(
                     context,
                     icon: Icons.help_outline,
                     title: 'Help & Support',
-                    subtitle: 'Get help with the app',
-                    onTap: () {
-                      // TODO: Help & support
+                    subtitle: 'contact@hirefy.careers',
+                    onTap: () async {
+                      final uri = Uri(
+                        scheme: 'mailto',
+                        path: 'contact@hirefy.careers',
+                        queryParameters: {'subject': 'Help & Support – Hirefy'},
+                      );
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri);
+                      }
                     },
                   ),
                   // Group policies and terms inside an ExpansionTile
@@ -112,7 +119,7 @@ class SettingsScreen extends StatelessWidget {
                           title: const Text('Privacy Policy'),
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => PrivacyPolicyScreen()),
+                            AppTransitions.slideRight(PrivacyPolicyScreen()),
                           ),
                         ),
                         ListTile(
@@ -121,7 +128,7 @@ class SettingsScreen extends StatelessWidget {
                           title: const Text('Terms of Service'),
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => TermsOfServiceScreen()),
+                            AppTransitions.slideRight(TermsOfServiceScreen()),
                           ),
                         ),
                         ListTile(
@@ -130,7 +137,7 @@ class SettingsScreen extends StatelessWidget {
                           title: const Text('Refund Policy'),
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => RefundPolicyScreen()),
+                            AppTransitions.slideRight(RefundPolicyScreen()),
                           ),
                         ),
                         ListTile(
@@ -139,7 +146,7 @@ class SettingsScreen extends StatelessWidget {
                           title: const Text('Cookie Policy'),
                           onTap: () => Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => CookiePolicyScreen()),
+                            AppTransitions.slideRight(CookiePolicyScreen()),
                           ),
                         ),
                       ],
@@ -160,6 +167,14 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: 'Sign out of your account',
                     color: AppTheme.errorColor,
                     onTap: () => _handleLogout(context, authProvider),
+                  ),
+                  _buildSettingItem(
+                    context,
+                    icon: Icons.delete_forever,
+                    title: 'Delete Account',
+                    subtitle: 'Permanently delete your account and data',
+                    color: AppTheme.errorColor,
+                    onTap: () => _handleDeleteAccount(context, authProvider),
                   ),
                 ],
               ),
@@ -284,7 +299,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppTheme.surfaceColor,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppTheme.borderColor),
           ),
@@ -344,7 +359,7 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
+            const Icon(
               Icons.arrow_forward_ios,
               size: 16,
               color: AppTheme.textTertiary,
@@ -360,7 +375,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+        child: AppSpinner(),
       ),
     );
 
@@ -380,6 +395,63 @@ class SettingsScreen extends StatelessWidget {
         backgroundColor: success ? AppTheme.successColor : null,
       ),
     );
+  }
+
+  Future<void> _handleDeleteAccount(
+    BuildContext context,
+    AuthProvider authProvider,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: const Text(
+          'This will permanently delete your account and all associated data. This action cannot be undone.\n\nAre you sure you want to continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.errorColor,
+            ),
+            child: const Text('Delete Account'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: AppSpinner()),
+    );
+
+    final result = await authProvider.deleteAccount();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // dismiss loading
+
+    if (result.success) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'Failed to delete account. Please try again.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
   }
 
   Future<void> _handleLogout(BuildContext context, AuthProvider authProvider) async {
@@ -405,6 +477,7 @@ class SettingsScreen extends StatelessWidget {
     );
 
     if (confirm == true) {
+      await AnalyticsService.instance.logLogout();
       await authProvider.signOut();
 
       if (!context.mounted) return;
@@ -414,5 +487,211 @@ class SettingsScreen extends StatelessWidget {
         (route) => false,
       );
     }
+  }
+}
+
+// ── Notification Toggle ──────────────────────────────────────────────────────
+
+class _NotificationToggleItem extends StatefulWidget {
+  const _NotificationToggleItem();
+
+  @override
+  State<_NotificationToggleItem> createState() =>
+      _NotificationToggleItemState();
+}
+
+class _NotificationToggleItemState extends State<_NotificationToggleItem> {
+  bool _loading = false;
+
+  Future<void> _handleToggle(NotificationProvider provider, bool value) async {
+    if (_loading) return;
+
+    if (value) {
+      // Check OS permission before enabling
+      final status = await provider.getPermissionStatus();
+      if (status == AuthorizationStatus.denied) {
+        if (!mounted) return;
+        _showPermissionBlockedDialog();
+        return;
+      }
+    }
+
+    setState(() => _loading = true);
+    await provider.setNotificationsEnabled(value);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _showPermissionBlockedDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Notifications Blocked'),
+        content: const Text(
+          'Notifications are blocked by your device.\n\n'
+          'To enable them, go to your device Settings and allow notifications for this app.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              // Open system app settings (works on iOS; Android shows store page fallback)
+              final uri = Uri.parse('app-settings:');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              }
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<NotificationProvider>(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.notifications_outlined,
+              color: AppTheme.primaryColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notifications',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  provider.notificationsEnabled
+                      ? 'Push notifications are enabled'
+                      : 'Push notifications are disabled',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          if (_loading)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: AppSpinner(size: 24),
+            )
+          else
+            Switch.adaptive(
+              value: provider.notificationsEnabled,
+              activeColor: AppTheme.primaryColor,
+              onChanged: (v) => _handleToggle(provider, v),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Dark Mode Toggle ─────────────────────────────────────────────────────────
+
+class _DarkModeToggleItem extends StatelessWidget {
+  const _DarkModeToggleItem();
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final brightness = MediaQuery.of(context).platformBrightness;
+    final effectivelyDark = themeProvider.themeMode == ThemeMode.dark ||
+        (themeProvider.themeMode == ThemeMode.system &&
+            brightness == Brightness.dark);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  effectivelyDark ? Icons.dark_mode : Icons.light_mode,
+                  color: AppTheme.primaryColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Dark Mode',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      themeProvider.isSystem
+                          ? 'Following system setting'
+                          : effectivelyDark
+                              ? 'Dark mode is on'
+                              : 'Light mode is on',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: effectivelyDark,
+                activeColor: AppTheme.primaryColor,
+                onChanged: (v) => themeProvider.setThemeMode(
+                    v ? ThemeMode.dark : ThemeMode.light),
+              ),
+            ],
+          ),
+        ),
+        // "Use system setting" link
+        if (!themeProvider.isSystem)
+          Padding(
+            padding: const EdgeInsets.only(right: 16, bottom: 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                onTap: () => themeProvider.setThemeMode(ThemeMode.system),
+                child: Text(
+                  'Use system setting',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.primaryColor,
+                        decoration: TextDecoration.underline,
+                      ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

@@ -8,8 +8,6 @@ class RevenueCatService {
   factory RevenueCatService() => _instance;
   RevenueCatService._internal();
 
-  // ⚠️ SUBSTITUIR PELA SUA API KEY DO REVENUECAT!
-  // Pegar em: https://app.revenuecat.com/settings/api-keys
   static const String _apiKey = AppConstants.revenueCatApiKey;
   
   bool _isInitialized = false;
@@ -17,12 +15,10 @@ class RevenueCatService {
   /// Inicializar RevenueCat com user ID
   Future<void> initialize(String userId) async {
     if (_isInitialized) {
-      print('✅ RevenueCat já inicializado');
       return;
     }
 
     try {
-      print('🔵 Inicializando RevenueCat (REAL) para: $userId');
       
       // Configurar logs (debug em development, error em production)
       await Purchases.setLogLevel(
@@ -36,9 +32,7 @@ class RevenueCatService {
       await Purchases.configure(configuration);
       
       _isInitialized = true;
-      print('✅ RevenueCat (REAL) inicializado para: $userId');
     } catch (e) {
-      print('❌ Erro ao inicializar RevenueCat: $e');
       rethrow;
     }
   }
@@ -46,19 +40,15 @@ class RevenueCatService {
   /// Buscar status da assinatura do usuário
   Future<Map<String, dynamic>> getSubscriptionStatus() async {
     try {
-      print('🔍 Consultando status da assinatura...');
       
       final customerInfo = await Purchases.getCustomerInfo();
       
-      // Checar entitlement "ApplyWise Premium"
-      final proEntitlement = customerInfo.entitlements.all['ApplyWise Premium'];
+      // Checar entitlement pro
+      final proEntitlement = customerInfo.entitlements.all[AppConstants.proEntitlement];
       final hasPro = proEntitlement?.isActive ?? false;
       
       if (hasPro) {
-        print('✅ Usuário tem assinatura PRO ativa');
-        print('📅 Expira em: ${proEntitlement?.expirationDate}');
       } else {
-        print('📊 Usuário no plano FREE');
       }
       
       return {
@@ -70,7 +60,6 @@ class RevenueCatService {
         },
       };
     } catch (e) {
-      print('❌ Erro ao consultar assinatura: $e');
       
       // Fallback: free tier
       return {
@@ -87,25 +76,20 @@ class RevenueCatService {
   /// Buscar pacotes de assinatura disponíveis
   Future<List<Package>> getAvailablePackages() async {
     try {
-      print('🔍 Buscando pacotes disponíveis...');
       
       final offerings = await Purchases.getOfferings();
       
       if (offerings.current == null) {
-        print('⚠️  Nenhuma offering encontrada');
         return [];
       }
       
       final packages = offerings.current!.availablePackages;
-      print('✅ ${packages.length} pacotes encontrados:');
       
       for (var package in packages) {
-        print('📦 ${package.identifier}: ${package.storeProduct.priceString}');
       }
       
       return packages;
     } catch (e) {
-      print('❌ Erro ao buscar pacotes: $e');
       return [];
     }
   }
@@ -113,18 +97,15 @@ class RevenueCatService {
   /// Comprar um pacote
   Future<bool> purchasePackage(Package package) async {
     try {
-      print('💳 Iniciando compra: ${package.identifier}');
       
       final purchaseResult = await Purchases.purchase(
         PurchaseParams.package(package),
       );
       
-      final hasPro = purchaseResult.customerInfo.entitlements.all['ApplyWise Premium']?.isActive ?? false;
+      final hasPro = purchaseResult.customerInfo.entitlements.all[AppConstants.proEntitlement]?.isActive ?? false;
       
       if (hasPro) {
-        print('✅ Compra concluída com sucesso! PRO ativado!');
       } else {
-        print('⚠️  Compra concluída mas PRO não ativado');
       }
       
       return hasPro;
@@ -132,18 +113,13 @@ class RevenueCatService {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       
       if (errorCode == PurchasesErrorCode.purchaseCancelledError) {
-        print('⚠️  Compra cancelada pelo usuário');
       } else if (errorCode == PurchasesErrorCode.purchaseNotAllowedError) {
-        print('❌ Compra não permitida (configuração incorreta)');
       } else if (errorCode == PurchasesErrorCode.productAlreadyPurchasedError) {
-        print('⚠️  Produto já comprado');
       } else {
-        print('❌ Erro na compra: ${e.message}');
       }
       
       return false;
     } catch (e) {
-      print('❌ Erro inesperado na compra: $e');
       return false;
     }
   }
@@ -151,21 +127,17 @@ class RevenueCatService {
   /// Restaurar compras anteriores
   Future<bool> restorePurchases() async {
     try {
-      print('🔄 Restaurando compras...');
       
       final customerInfo = await Purchases.restorePurchases();
       
-      final hasPro = customerInfo.entitlements.all['ApplyWise Premium']?.isActive ?? false;
+      final hasPro = customerInfo.entitlements.all[AppConstants.proEntitlement]?.isActive ?? false;
       
       if (hasPro) {
-        print('✅ Compras restauradas! PRO ativado!');
       } else {
-        print('⚠️  Nenhuma compra ativa encontrada');
       }
       
       return hasPro;
     } catch (e) {
-      print('❌ Erro ao restaurar compras: $e');
       return false;
     }
   }
@@ -176,7 +148,6 @@ class RevenueCatService {
       final customerInfo = await Purchases.getCustomerInfo();
       return customerInfo.entitlements.all[entitlementId]?.isActive ?? false;
     } catch (e) {
-      print('❌ Erro ao verificar entitlement: $e');
       return false;
     }
   }
@@ -184,12 +155,55 @@ class RevenueCatService {
   /// Logout (limpar user ID)
   Future<void> logout() async {
     try {
-      print('🔵 Fazendo logout do RevenueCat...');
       await Purchases.logOut();
       _isInitialized = false;
-      print('✅ Logout do RevenueCat concluído');
     } catch (e) {
-      print('❌ Erro ao fazer logout: $e');
+    }
+  }
+
+  /// Buscar produtos de créditos (compras consumíveis)
+  Future<List<StoreProduct>> getCreditProducts() async {
+    try {
+      
+      final products = await Purchases.getProducts(
+        ['credits_5', 'credits_10', 'credits_20'],
+        type: PurchaseType.inapp,
+      );
+      
+      for (var product in products) {
+      }
+      
+      return products;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Comprar produto de créditos (compra consumível)
+  Future<bool> purchaseCreditProduct(StoreProduct product) async {
+    try {
+      
+      final purchaseResult = await Purchases.purchaseStoreProduct(product);
+      
+      // Para compras consumíveis, verificar se a transação foi registrada
+      final hasTransaction = purchaseResult.customerInfo.nonSubscriptionTransactions.isNotEmpty;
+      
+      if (hasTransaction) {
+      } else {
+      }
+      
+      return hasTransaction;
+    } on PlatformException catch (e) {
+      final errorCode = PurchasesErrorHelper.getErrorCode(e);
+      
+      if (errorCode == PurchasesErrorCode.purchaseCancelledError) {
+      } else if (errorCode == PurchasesErrorCode.purchaseNotAllowedError) {
+      } else {
+      }
+      
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 }

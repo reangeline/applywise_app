@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
+import '../../config/transitions.dart';
+import '../../widgets/app_spinner.dart';
+import '../../models/resume.dart';
 import '../../providers/resume_provider.dart';
+import '../../services/analytics_service.dart';
 import 'resume_add_screen.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/pro_feature_gate.dart';
@@ -19,13 +23,16 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
   final _jobDescriptionController = TextEditingController();
   bool _isLoading = false;
   String? _selectedResumeId;
+  final _companyController = TextEditingController();
+  final _targetRoleController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     // load saved resumes after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final resumeProvider = Provider.of<ResumeProvider>(context, listen: false);
+      final resumeProvider =
+          Provider.of<ResumeProvider>(context, listen: false);
       resumeProvider.loadResumes();
     });
   }
@@ -36,33 +43,36 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
     final resumeProvider = Provider.of<ResumeProvider>(context);
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: const Text('Optimize Resume'),
         automaticallyImplyLeading: false,
       ),
       body: ProFeatureGate(
         isPro: subscriptionProvider.isPro,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildInfoCard(),
-                  const SizedBox(height: 24),
-                  _buildResumeInput(resumeProvider),
-                  const SizedBox(height: 24),
-                  _buildJobDescriptionInput(),
-                  const SizedBox(height: 32),
-                  _buildOptimizeButton(resumeProvider),
-                  if (resumeProvider.currentOptimization != null) ...[
+        credits: subscriptionProvider.credits,
+        child: GestureDetector(
+          onTap: () {
+            FocusManager.instance.primaryFocus?.unfocus();
+          },
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildInfoCard(),
+                    const SizedBox(height: 24),
+                    _buildResumeInput(resumeProvider),
+                    const SizedBox(height: 24),
+                    _buildJobTargetFields(),
+                    const SizedBox(height: 24),
+                    _buildJobDescriptionInput(),
                     const SizedBox(height: 32),
-                    _buildResults(resumeProvider),
+                    _buildOptimizeButton(resumeProvider),
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -100,8 +110,8 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
             child: Text(
               'AI will optimize your resume to match the job description',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.primaryDark,
-              ),
+                    color: AppTheme.primaryDark,
+                  ),
             ),
           ),
         ],
@@ -122,7 +132,8 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
           height: 56,
           child: ElevatedButton.icon(
             onPressed: () async {
-              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ResumeAddScreen()));
+              await Navigator.of(context).push(
+                  AppTransitions.slideRight(const ResumeAddScreen()));
               // reload resumes after returning
               await resumeProvider.loadResumes();
             },
@@ -135,226 +146,310 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         ),
         const SizedBox(height: 12),
         resumeProvider.isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : resumeProvider.resumes.isEmpty
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // When no real resumes, show only mock dropdown (no 'No saved resumes yet' placeholder)
-                      Builder(builder: (context) {
-                        final mockResumes = [
-                          {
-                            'id': 'mock-1',
-                            'nickname': 'Sample Resume — Product Manager',
-                            'created': DateTime.now().toLocal().toString().split(' ').first,
-                            'text': 'Product Manager\nExperienced PM with 6 years leading cross-functional teams, product strategy, and go-to-market execution.\nLed roadmap initiatives that increased user engagement by 30%.'
-                          },
-                          {
-                            'id': 'mock-2',
-                            'nickname': 'Sample Resume — Senior Engineer',
-                            'created': DateTime.now().subtract(Duration(days: 30)).toLocal().toString().split(' ').first,
-                            'text': 'Senior Engineer\nBackend specialist with 8 years building scalable APIs and microservices.\nOptimized systems to improve throughput and reliability, reducing latency by 40%.'
-                          }
-                        ];
+            ? const Center(child: AppSpinner())
+            : _buildResumesList(resumeProvider)
+      ],
+    );
+  }
 
-                        return DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          value: _selectedResumeId,
-                          decoration: const InputDecoration(border: OutlineInputBorder()),
-                          hint: const Text('Select a sample resume'),
-                          items: mockResumes.map((r) {
-                            return DropdownMenuItem(
-                              value: (r['id'] ?? '').toString(),
-                              child: Text('${(r['nickname'] ?? '').toString()} • ${(r['created'] ?? '').toString()}'),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setState(() => _selectedResumeId = v),
-                        );
-                      }),
+  Widget _buildResumesList(ResumeProvider resumeProvider) {
+    // Filtrar apenas currículos manuais
+    final manualResumes =
+        resumeProvider.resumes.where((r) => r.type == 'manual').toList();
 
-                      const SizedBox(height: 12),
-                      if (_selectedResumeId != null && _selectedResumeId!.startsWith('mock-')) ...[
-                        Builder(builder: (context) {
-                          final mock = _selectedResumeId == 'mock-1'
-                              ? {
-                                  'nickname': 'Sample Resume — Product Manager',
-                                  'created': DateTime.now().toLocal().toString().split(' ').first,
-                                  'text': 'Product Manager\nExperienced PM with 6 years leading cross-functional teams, product strategy, and go-to-market execution.\nLed roadmap initiatives that increased user engagement by 30%.'
-                                }
-                              : {
-                                  'nickname': 'Sample Resume — Senior Engineer',
-                                  'created': DateTime.now().subtract(Duration(days: 30)).toLocal().toString().split(' ').first,
-                                  'text': 'Senior Engineer\nBackend specialist with 8 years building scalable APIs and microservices.\nOptimized systems to improve throughput and reliability, reducing latency by 40%.'
-                                };
-                          final textLines = (mock['text'] ?? '').toString().split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-                          final previewLines = textLines.take(3).toList();
-                          return Card(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 1,
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(mock['nickname']!, style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 8),
-                                  ...previewLines.map((line) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 6),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const Text('• ', style: TextStyle(fontSize: 14)),
-                                            Expanded(child: Text(line, style: Theme.of(context).textTheme.bodyMedium)),
-                                          ],
-                                        ),
-                                      )),
-                                  const SizedBox(height: 6),
-                                  Text('Created: ${mock['created']!}', style: Theme.of(context).textTheme.bodySmall),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ],
-                  )
-                : Column(
-                    children: [
-                      // Build dropdown items from real resumes
-                      if (resumeProvider.resumes.isNotEmpty) ...[
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          value: _selectedResumeId,
-                          decoration: const InputDecoration(border: OutlineInputBorder()),
-                          hint: const Text('Select a resume'),
-                          items: resumeProvider.resumes.map((r) {
-                            return DropdownMenuItem(
-                              value: r.id,
-                              child: Text('${r.optimizedText.split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => 'Resume ${r.id.substring(0,6)}')} • ${r.createdAt.toLocal().toString().split(' ').first}'),
-                            );
-                          }).toList(),
-                          onChanged: (v) => setState(() => _selectedResumeId = v),
+    if (manualResumes.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.borderColor),
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.description_outlined,
+              size: 48,
+              color: AppTheme.textSecondary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No manual resumes yet',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create a manual resume to get started',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          isExpanded: true,
+          initialValue: _selectedResumeId,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: 'Select Resume',
+          ),
+          hint: const Text('Choose a manual resume'),
+          items: manualResumes.map((resume) {
+            final fullName = resume.personal?.fullName ?? '';
+            final name = fullName.isNotEmpty ? fullName : (resume.nickname ?? 'Resume');
+            final role = resume.personal?.currentRole;
+            final date = resume.createdAt.toLocal().toString().split(' ').first;
+
+            return DropdownMenuItem<String>(
+              value: resume.id,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    if (role != null && role.isNotEmpty)
+                      TextSpan(
+                        text: '  ·  $role',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.primaryColor,
                         ),
-                      ] else ...[
-                        // Show mock dropdown when no real resumes
-                        Builder(builder: (context) {
-                          final mockResumes = [
-                            {
-                              'id': 'mock-1',
-                              'nickname': 'Sample Resume — Product Manager',
-                              'created': DateTime.now().toLocal().toString().split(' ').first,
-                              'text': 'Product Manager\nExperienced PM with 6 years...'
-                            },
-                            {
-                              'id': 'mock-2',
-                              'nickname': 'Sample Resume — Senior Engineer',
-                              'created': DateTime.now().subtract(Duration(days: 30)).toLocal().toString().split(' ').first,
-                              'text': 'Senior Engineer\nBackend specialist with 8 years...'
-                            }
-                          ];
+                      ),
+                    TextSpan(
+                      text: '  $date',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            );
+          }).toList(),
+          onChanged: (value) => setState(() => _selectedResumeId = value),
+        ),
+        const SizedBox(height: 12),
+        if (_selectedResumeId != null) _buildResumePreview(manualResumes),
+      ],
+    );
+  }
 
-                          return DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            value: _selectedResumeId,
-                            decoration: const InputDecoration(border: OutlineInputBorder()),
-                            hint: const Text('Select a sample resume'),
-                            items: mockResumes.map((r) {
-                              return DropdownMenuItem(
-                                  value: (r['id'] ?? '').toString(),
-                                  child: Text('${(r['nickname'] ?? '').toString()} • ${(r['created'] ?? '').toString()}'),
-                                );
-                            }).toList(),
-                            onChanged: (v) => setState(() => _selectedResumeId = v),
-                          );
-                        }),
-                      ],
+  Widget _buildResumePreview(List<Resume> manualResumes) {
+    final selected = manualResumes.firstWhere(
+      (r) => r.id == _selectedResumeId,
+    );
 
-                      const SizedBox(height: 12),
-                      if (_selectedResumeId != null) ...[
-                        Builder(builder: (context) {
-                          if (_selectedResumeId!.startsWith('mock-')) {
-                            final mock = _selectedResumeId == 'mock-1'
-                                ? {
-                                    'nickname': 'Sample Resume — Product Manager',
-                                    'created': DateTime.now().toLocal().toString().split(' ').first,
-                                    'text': 'Product Manager\nExperienced PM with 6 years leading cross-functional teams, product strategy, and go-to-market execution.\nLed roadmap initiatives that increased user engagement by 30%.'
-                                  }
-                                : {
-                                    'nickname': 'Sample Resume — Senior Engineer',
-                                    'created': DateTime.now().subtract(Duration(days: 30)).toLocal().toString().split(' ').first,
-                                    'text': 'Senior Engineer\nBackend specialist with 8 years building scalable APIs and microservices.\nOptimized systems to improve throughput and reliability, reducing latency by 40%.'
-                                  };
-                            final textLines = (mock['text'] ?? '').toString().split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-                            final previewLines = textLines.take(3).toList();
-                            return Card(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 1,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(mock['nickname']!, style: Theme.of(context).textTheme.titleMedium),
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Nome e cargo
+            if (selected.personal?.fullName != null) ...[
+              Text(
+                selected.personal!.fullName,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              if (selected.personal?.currentRole != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  selected.personal!.currentRole!,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.primaryColor,
+                      ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 12),
 
-                                    const SizedBox(height: 8),
-                                    ...previewLines.map((line) => Padding(
-                                          padding: const EdgeInsets.only(bottom: 6),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              const Text('• ', style: TextStyle(fontSize: 14)),
-                                              Expanded(child: Text(line, style: Theme.of(context).textTheme.bodyMedium)),
-                                            ],
-                                          ),
-                                        )),
-                                    const SizedBox(height: 6),
-                                    Text('Created: ${mock['created']!}', style: Theme.of(context).textTheme.bodySmall),
-                                  ],
-                                ),
-                              ),
-                            );
-                          } else {
-                            final selected = resumeProvider.resumes.firstWhere((r) => r.id == _selectedResumeId, orElse: () => resumeProvider.resumes.first);
-                            final nickname = selected.optimizedText.split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => 'Resume ${selected.id.substring(0, 6)}');
-                            final created = selected.createdAt.toLocal().toString().split(' ').first;
-                            final textLines = selected.optimizedText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-                            final previewLines = textLines.take(3).toList();
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Card(
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  elevation: 1,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(nickname, style: Theme.of(context).textTheme.titleMedium),
-                                        const SizedBox(height: 6),
-                                        Text('Created: $created', style: Theme.of(context).textTheme.bodySmall),
-                                      ],
-                                    ),
+            // Informações de contato
+            if (selected.personal != null) ...[
+              if (selected.personal!.email.isNotEmpty)
+                _buildInfoRow(Icons.email, selected.personal!.email),
+              if (selected.personal!.phone != null &&
+                  selected.personal!.phone!.isNotEmpty)
+                _buildInfoRow(Icons.phone, selected.personal!.phone!),
+              if (selected.personal!.city != null &&
+                  selected.personal!.city!.isNotEmpty)
+                _buildInfoRow(Icons.location_on,
+                    '${selected.personal!.city}${selected.personal!.state != null ? ', ${selected.personal!.state}' : ''}'),
+            ],
+
+            // Experiências
+            if (selected.experiences != null &&
+                selected.experiences!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.work, size: 20, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Experience',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...selected.experiences!.take(2).map((exp) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          exp.role,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                ...previewLines.map((line) => Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text('• ', style: TextStyle(fontSize: 14)),
-                                          Expanded(child: Text(line, style: Theme.of(context).textTheme.bodyMedium)),
-                                        ],
-                                      ),
-                                    )),
-                              ],
-                            );
-                          }
-                        }),
+                        ),
+                        Text(
+                          exp.company,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                        ),
                       ],
+                    ),
+                  )),
+              if (selected.experiences!.length > 2)
+                Text(
+                  '+${selected.experiences!.length - 2} more experiences',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                ),
+            ],
+
+            // Educação
+            if (selected.education != null &&
+                selected.education!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.school, size: 20, color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Education',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...selected.education!.take(1).map((edu) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        edu.degree,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      Text(
+                        edu.institution,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                      ),
                     ],
-                  )
+                  )),
+            ],
+
+            const SizedBox(height: 12),
+            Text(
+              'Created: ${selected.createdAt.toLocal().toString().split(' ').first}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppTheme.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobTargetFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Job Target',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _companyController,
+                decoration: const InputDecoration(
+                  labelText: 'Company',
+                  hintText: 'e.g. Google',
+                  prefixIcon: Icon(Icons.business_outlined),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                controller: _targetRoleController,
+                decoration: const InputDecoration(
+                  labelText: 'Target Position',
+                  hintText: 'e.g. Backend Engineer',
+                  prefixIcon: Icon(Icons.work_outline),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -371,8 +466,13 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         TextFormField(
           controller: _jobDescriptionController,
           maxLines: 8,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+          autofocus: false,
+          enableInteractiveSelection: true,
           decoration: const InputDecoration(
             hintText: 'Paste the job description here...',
+            border: OutlineInputBorder(),
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
@@ -394,10 +494,7 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
+                child: AppSpinnerSmall(),
               )
             : const Icon(Icons.auto_awesome),
         label: Text(_isLoading ? 'Optimizing...' : 'Optimize Resume'),
@@ -408,133 +505,69 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
     );
   }
 
-  Widget _buildResults(ResumeProvider resumeProvider) {
-    final optimization = resumeProvider.currentOptimization!;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: AppTheme.cardShadow,
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Match Score',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${optimization.score.toStringAsFixed(0)}%',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: AppTheme.primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Optimized Resume',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.borderColor),
-          ),
-          child: Text(
-            optimization.optimizedText,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'Suggestions',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        ...optimization.suggestions.map((suggestion) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.borderColor),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(
-                  Icons.check_circle,
-                  color: AppTheme.successColor,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    suggestion,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
   Future<void> _handleOptimize(ResumeProvider resumeProvider) async {
     if (!_formKey.currentState!.validate()) return;
 
     // require a selected resume
     if (_selectedResumeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a resume to optimize')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a resume to optimize')));
       return;
     }
 
     setState(() => _isLoading = true);
 
+    final company = _companyController.text.trim().isEmpty ? null : _companyController.text.trim();
+    final role = _targetRoleController.text.trim().isEmpty ? null : _targetRoleController.text.trim();
+
+    AnalyticsService.instance.logResumeOptimizeStarted(
+      targetCompany: company,
+      targetRole: role,
+    );
+
     try {
-      final selected = resumeProvider.resumes.firstWhere((r) => r.id == _selectedResumeId);
+      final selected =
+          resumeProvider.resumes.firstWhere((r) => r.id == _selectedResumeId);
+
       await resumeProvider.optimizeResume(
-        resumeText: selected.optimizedText,
+        resumeId: selected.id,
         jobDescription: _jobDescriptionController.text,
+        targetCompany: _companyController.text.trim().isEmpty ? null : _companyController.text.trim(),
+        targetRole: _targetRoleController.text.trim().isEmpty ? null : _targetRoleController.text.trim(),
       );
 
       if (!mounted) return;
+
+      // Limpar loading antes de navegar
+      setState(() => _isLoading = false);
+
+      AnalyticsService.instance.logResumeOptimizeSuccess(
+        targetCompany: company,
+        targetRole: role,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Resume optimized successfully!'),
+          content: Text(
+            'Resume sent for optimization! It is being processed and will appear in your Optimized Resumes list shortly.',
+          ),
           backgroundColor: AppTheme.successColor,
+          duration: Duration(seconds: 5),
         ),
       );
+      
+      // Resetar o formulário após envio bem-sucedido
+      _jobDescriptionController.clear();
+      _companyController.clear();
+      _targetRoleController.clear();
+      setState(() => _selectedResumeId = null);
+      
     } catch (e) {
       if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      AnalyticsService.instance.logResumeOptimizeError(e.toString());
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -542,10 +575,6 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
           backgroundColor: AppTheme.errorColor,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
     }
   }
 
@@ -553,6 +582,8 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
   void dispose() {
     _resumeController.dispose();
     _jobDescriptionController.dispose();
+    _companyController.dispose();
+    _targetRoleController.dispose();
     super.dispose();
   }
 }

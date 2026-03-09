@@ -29,7 +29,7 @@ class GlassCard extends StatelessWidget {
       padding: padding ?? const EdgeInsets.all(20),
       margin: margin,
       decoration: BoxDecoration(
-        color: hasGradient ? null : AppTheme.cardBackground,
+        color: hasGradient ? null : Theme.of(context).colorScheme.surface,
         gradient: hasGradient ? AppTheme.primaryGradient : null,
         borderRadius: AppTheme.cardRadius,
         boxShadow: AppTheme.cardShadow,
@@ -127,7 +127,7 @@ class _AnimatedGlassCardState extends State<AnimatedGlassCard>
             padding: widget.padding ?? const EdgeInsets.all(20),
             margin: widget.margin,
             decoration: BoxDecoration(
-              color: widget.hasGradient ? null : AppTheme.cardBackground,
+              color: widget.hasGradient ? null : Theme.of(context).colorScheme.surface,
               gradient: widget.hasGradient ? AppTheme.primaryGradient : null,
               borderRadius: AppTheme.cardRadius,
               boxShadow: [

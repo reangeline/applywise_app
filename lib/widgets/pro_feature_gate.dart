@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
+import '../config/transitions.dart';
 import '../screens/subscription/paywall_screen.dart';
+import '../screens/subscription/credits_paywall_screen.dart';
 
 class ProFeatureGate extends StatelessWidget {
   final bool isPro;
+  final int credits;
   final Widget child;
 
   const ProFeatureGate({
     super.key,
     required this.isPro,
+    this.credits = 0,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (isPro) {
+    // Liberar se tem assinatura OU créditos
+    if (isPro || credits > 0) {
       return child;
     }
 
@@ -61,10 +66,10 @@ class ProFeatureGate extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Upgrade to Premium to access unlimited resume optimizations and premium features',
+                  'Get Premium for unlimited optimizations or buy credits to optimize your resume',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+                        color: AppTheme.textSecondary,
+                      ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -73,13 +78,28 @@ class ProFeatureGate extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const PaywallScreen()),
+                        AppTransitions.slideUp(const PaywallScreen()),
                       );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
                     ),
                     child: const Text('Upgrade Now'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        AppTransitions.slideUp(const CreditsPaywallScreen()),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.primaryColor),
+                    ),
+                    child: const Text('Buy Credits'),
                   ),
                 ),
               ],

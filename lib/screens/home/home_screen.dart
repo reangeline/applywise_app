@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../services/analytics_service.dart';
 import '../resume/resume_optimizer_screen.dart';
 import '../resume/resume_list_screen.dart';
 import '../settings/settings_screen.dart';
@@ -14,6 +15,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  static const _screenNames = ['home', 'resumes', 'optimizer', 'settings'];
+
+  @override
+  void initState() {
+    super.initState();
+    AnalyticsService.instance.logScreenView('home');
+  }
 
   final List<Widget> _screens = const [
     HomeDashboard(),
@@ -42,9 +51,10 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               _currentIndex = index;
             });
+            AnalyticsService.instance.logScreenView(_screenNames[index]);
           },
           type: BottomNavigationBarType.fixed,
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           selectedItemColor: AppTheme.primaryColor,
           unselectedItemColor: AppTheme.textTertiary,
           selectedFontSize: 12,

@@ -49,7 +49,6 @@ class _OptimizeInfoScreenState extends State<OptimizeInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: const Text('How Optimization Works'),
         elevation: 0,
@@ -180,27 +179,6 @@ class _OptimizeInfoScreenState extends State<OptimizeInfoScreen> {
     );
   }
 
-  Widget _iconFor(String key) {
-    IconData icon;
-    switch (key) {
-      case 'search':
-        icon = Icons.search;
-        break;
-      case 'compare':
-        icon = Icons.compare_arrows;
-        break;
-      default:
-        icon = Icons.auto_awesome;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(80),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Icon(icon, size: 48, color: AppTheme.primaryColor),
-    );
-  }
+  // _iconFor removed (unused)
 }
+
