@@ -11,7 +11,7 @@ import '../../providers/theme_provider.dart';
 import '../../config/transitions.dart';
 import '../../services/analytics_service.dart';
 import '../../widgets/app_spinner.dart';
-import '../auth/login_screen.dart';
+import '../onboarding/onboarding_screen.dart';
 import '../subscription/paywall_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_of_service_screen.dart';
@@ -37,7 +37,7 @@ class SettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildProfileCard(authProvider, subscriptionProvider),
+              _buildProfileCard(context, authProvider, subscriptionProvider),
               const SizedBox(height: 24),
               _buildSection(
                 context,
@@ -194,7 +194,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard(AuthProvider authProvider, SubscriptionProvider subscriptionProvider) {
+  Widget _buildProfileCard(BuildContext context, AuthProvider authProvider, SubscriptionProvider subscriptionProvider) {
     return SizedBox(
       width: double.infinity,
       child: Container(
@@ -242,37 +242,54 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    subscriptionProvider.isPro
-                        ? Icons.workspace_premium
-                        : Icons.workspace_premium_outlined,
-                    size: 16,
-                    color: subscriptionProvider.isPro
-                        ? AppTheme.primaryColor
-                        : AppTheme.textSecondary,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    subscriptionProvider.isPro ? 'Premium' : 'Free',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: subscriptionProvider.isPro
-                          ? AppTheme.primaryColor
-                          : AppTheme.textSecondary,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        subscriptionProvider.isPro
+                            ? Icons.workspace_premium
+                            : Icons.workspace_premium_outlined,
+                        size: 16,
+                        color: subscriptionProvider.isPro
+                            ? AppTheme.primaryColor
+                            : AppTheme.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        subscriptionProvider.isPro ? 'Premium' : 'Free',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: subscriptionProvider.isPro
+                              ? AppTheme.primaryColor
+                              : AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () => _showEditProfileSheet(context, authProvider),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(20),
                     ),
+                    child: const Icon(Icons.edit_outlined, size: 16, color: Colors.white),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         ),
@@ -370,6 +387,20 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _showEditProfileSheet(BuildContext context, AuthProvider authProvider) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _EditProfileSheet(
+        currentName: authProvider.user?.name ?? '',
+        authProvider: authProvider,
+      ),
+    );
+  }
+
   Future<void> _handleRestore(BuildContext context, SubscriptionProvider subscriptionProvider) async {
     showDialog(
       context: context,
@@ -441,7 +472,7 @@ class SettingsScreen extends StatelessWidget {
 
     if (result.success) {
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        AppTransitions.fadeSlide(const OnboardingScreen()),
         (route) => false,
       );
     } else {
@@ -483,10 +514,131 @@ class SettingsScreen extends StatelessWidget {
       if (!context.mounted) return;
 
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        AppTransitions.fadeSlide(const OnboardingScreen()),
         (route) => false,
       );
     }
+  }
+}
+
+// ── Edit Profile Sheet ───────────────────────────────────────────────────────
+
+class _EditProfileSheet extends StatefulWidget {
+  final String currentName;
+  final AuthProvider authProvider;
+
+  const _EditProfileSheet({
+    required this.currentName,
+    required this.authProvider,
+  });
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final TextEditingController _nameController;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.currentName);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    final result = await widget.authProvider.updateProfile(name: name);
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result.success) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully!'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'Failed to update profile. Please try again.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Edit Profile',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _nameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              prefixIcon: Icon(Icons.person_outline),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _save,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Save Changes',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

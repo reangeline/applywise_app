@@ -1,10 +1,12 @@
 import '../config/constants.dart';
 import '../models/resume.dart';
 import 'api_service.dart';
+import 'auth_service.dart';
 import 'storage_service.dart';
 
 class ResumeService {
   final ApiService _apiService = ApiService();
+  final AuthService _authService = AuthService();
   final StorageService _storageService = StorageService();
 
   Future<Resume?> optimizeResume({
@@ -119,6 +121,50 @@ class ResumeService {
     }
 
     throw Exception('LinkedIn optimization timed out');
+  }
+
+  /// Uploads a PDF file to the backend for AI parsing.
+  /// Returns a [Resume] pre-populated with the extracted data.
+  Future<Resume> parsePdfResume({
+    required List<int> pdfBytes,
+    required String fileName,
+  }) async {
+    final token = await _authService.ensureFreshAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final response = await _apiService.postMultipart(
+      AppConstants.parsePdfResumeEndpoint,
+      'file',
+      pdfBytes,
+      fileName,
+      token: token,
+    );
+
+    return Resume.fromJson(response);
+  }
+
+  /// Same as [parsePdfResume] but also returns the ATS score extracted from the
+  /// raw response, so callers can display it before opening the edit form.
+  Future<({Resume resume, int atsScore})> parsePdfResumeWithScore({
+    required List<int> pdfBytes,
+    required String fileName,
+  }) async {
+    final token = await _authService.ensureFreshAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final response = await _apiService.postMultipart(
+      AppConstants.parsePdfResumeEndpoint,
+      'file',
+      pdfBytes,
+      fileName,
+      token: token,
+    );
+
+    final parsed = response['parsed_data'] as Map<String, dynamic>? ?? response;
+    final rawScore = parsed['score'] ?? parsed['ats_score'] ?? response['score'];
+    final atsScore = (rawScore is num ? rawScore.round() : 0).clamp(0, 100);
+
+    return (resume: Resume.fromJson(response), atsScore: atsScore);
   }
 
   Future<Resume> createManualResume({

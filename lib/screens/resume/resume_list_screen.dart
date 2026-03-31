@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../config/theme.dart';
-import '../../config/transitions.dart';
-import '../../widgets/app_spinner.dart';
 import '../../providers/resume_provider.dart';
 import '../../models/resume.dart';
 import '../../services/analytics_service.dart';
 import '../../services/pdf_service.dart';
 import 'resume_manual_form.dart';
+import 'resume_pdf_upload_screen.dart';
 import 'linkedin_carousel_screen.dart';
 
 class ResumeListScreen extends StatefulWidget {
@@ -67,7 +66,73 @@ class _ResumeListScreenState extends State<ResumeListScreen>
   void _openLinkedInCarousel(Resume resume) {
     if (resume.linkedInData == null) return;
     Navigator.of(context).push(
-      AppTransitions.slideRight(LinkedInCarouselScreen(data: resume.linkedInData!)),
+      MaterialPageRoute(
+        builder: (_) => LinkedInCarouselScreen(data: resume.linkedInData!),
+      ),
+    );
+  }
+
+  void _showNewResumeOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add New Resume',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose how you want to create your resume.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppTheme.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                _NewResumeOptionTile(
+                  icon: Icons.edit_note,
+                  iconColor: AppTheme.secondaryColor,
+                  title: 'Fill Manually',
+                  subtitle: 'Add your information step by step.',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ResumeManualForm()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _NewResumeOptionTile(
+                  icon: Icons.picture_as_pdf,
+                  iconColor: AppTheme.primaryColor,
+                  title: 'Import PDF',
+                  subtitle: 'Upload a PDF and let AI pre-fill your resume.',
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const ResumePdfUploadScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -100,18 +165,14 @@ class _ResumeListScreenState extends State<ResumeListScreen>
       ),
       floatingActionButton: _tabController.index == 0
           ? FloatingActionButton.extended(
-              onPressed: () {
-                Navigator.of(context).push(
-                  AppTransitions.slideRight(const ResumeManualForm()),
-                );
-              },
+              onPressed: () => _showNewResumeOptions(context),
               icon: const Icon(Icons.add),
-              label: const Text('New Manual'),
+              label: const Text('New Resume'),
             )
           : null,
       body: SafeArea(
         child: resumeProvider.isLoading
-            ? const Center(child: AppSpinner())
+            ? const Center(child: CircularProgressIndicator())
             : filteredResumes.isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
@@ -182,10 +243,10 @@ class _ResumeListScreenState extends State<ResumeListScreen>
       child: Card(
         elevation: 0,
         color: isManual
-            ? Colors.blue.withValues(alpha: 0.05)
+            ? Colors.blue.withValues(alpha: 0.03)
             : isLinkedIn
-                ? const Color(0xFF0077B5).withValues(alpha: 0.05)
-                : Theme.of(context).colorScheme.surface,
+                ? const Color(0xFF0077B5).withValues(alpha: 0.03)
+                : AppTheme.surfaceColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
@@ -207,7 +268,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
             if (isLinkedIn) {
               _openLinkedInCarousel(resume);
             } else if (isManual) {
-              _editManualResume(resume);
+              _showAtsDetailsSheet(resume);
             } else {
               _showResumeDetails(resume);
             }
@@ -302,12 +363,15 @@ class _ResumeListScreenState extends State<ResumeListScreen>
                                 color: isManual ? Colors.blue.shade700 : (isLinkedIn ? linkedInBlue : AppTheme.primaryColor),
                               ),
                               const SizedBox(width: 4),
-                              Text(
-                                isManual ? 'Manual Resume' : (isLinkedIn ? 'LinkedIn Optimization' : 'AI Optimized Resume'),
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: isManual ? Colors.blue.shade700 : (isLinkedIn ? linkedInBlue : AppTheme.primaryColor),
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                              Flexible(
+                                child: Text(
+                                  isManual ? 'Manual Resume' : (isLinkedIn ? 'LinkedIn Optimization' : 'AI Optimized Resume'),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: isManual ? Colors.blue.shade700 : (isLinkedIn ? linkedInBlue : AppTheme.primaryColor),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
@@ -454,14 +518,17 @@ class _ResumeListScreenState extends State<ResumeListScreen>
                             const Icon(Icons.work_outline,
                                 size: 16, color: AppTheme.textTertiary),
                             const SizedBox(width: 4),
-                            Text(
-                              '${resume.experiences!.length} experience(s)',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: AppTheme.textTertiary,
-                                  ),
+                            Flexible(
+                              child: Text(
+                                '${resume.experiences!.length} experience(s)',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: AppTheme.textTertiary,
+                                    ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
@@ -491,12 +558,15 @@ class _ResumeListScreenState extends State<ResumeListScreen>
                             color: AppTheme.textTertiary,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${resume.suggestions?.length ?? 0} suggestions',
-                            style:
-                                Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      color: AppTheme.textTertiary,
-                                    ),
+                          Flexible(
+                            child: Text(
+                              '${resume.suggestions?.length ?? 0} suggestions',
+                              style:
+                                  Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: AppTheme.textTertiary,
+                                      ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -529,15 +599,21 @@ class _ResumeListScreenState extends State<ResumeListScreen>
             if (data.experiences.isNotEmpty) ...[
               const Icon(Icons.work_outline, size: 14, color: AppTheme.textTertiary),
               const SizedBox(width: 4),
-              Text('${data.experiences.length} experience(s)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary)),
+              Flexible(
+                child: Text('${data.experiences.length} experience(s)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary),
+                    overflow: TextOverflow.ellipsis),
+              ),
               const SizedBox(width: 12),
             ],
             if (data.skills.isNotEmpty) ...[
               const Icon(Icons.star_outline, size: 14, color: AppTheme.textTertiary),
               const SizedBox(width: 4),
-              Text('${data.skills.length} skills',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary)),
+              Flexible(
+                child: Text('${data.skills.length} skills',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary),
+                    overflow: TextOverflow.ellipsis),
+              ),
             ],
           ],
         ),
@@ -547,8 +623,11 @@ class _ResumeListScreenState extends State<ResumeListScreen>
             children: [
               const Icon(Icons.lightbulb_outline, size: 14, color: AppTheme.textTertiary),
               const SizedBox(width: 4),
-              Text('${data.suggestions.length} suggestion(s)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary)),
+              Flexible(
+                child: Text('${data.suggestions.length} suggestion(s)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textTertiary),
+                    overflow: TextOverflow.ellipsis),
+              ),
             ],
           ),
         ],
@@ -594,22 +673,28 @@ class _ResumeListScreenState extends State<ResumeListScreen>
             if (resume.suggestions?.isNotEmpty == true) ...[
               const Icon(Icons.lightbulb_outline, size: 14, color: AppTheme.textTertiary),
               const SizedBox(width: 4),
-              Text(
-                '${resume.suggestions!.length} suggestions',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textTertiary,
-                    ),
+              Flexible(
+                child: Text(
+                  '${resume.suggestions!.length} suggestions',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textTertiary,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
             if (resume.missingRequirements?.isNotEmpty == true) ...[
               const SizedBox(width: 12),
               const Icon(Icons.warning_amber_outlined, size: 14, color: AppTheme.warningColor),
               const SizedBox(width: 4),
-              Text(
-                '${resume.missingRequirements!.length} missing skills',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.warningColor,
-                    ),
+              Flexible(
+                child: Text(
+                  '${resume.missingRequirements!.length} missing skills',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.warningColor,
+                      ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ],
@@ -624,6 +709,274 @@ class _ResumeListScreenState extends State<ResumeListScreen>
     return AppTheme.errorColor;
   }
 
+  void _showAtsDetailsSheet(Resume resume) {
+    final hasAts = resume.atsScore != null || resume.atsImprovements?.isNotEmpty == true;
+    final score = resume.atsScore ?? 0;
+    final Color scoreColor = score < 50
+        ? AppTheme.errorColor
+        : score < 75
+            ? const Color(0xFFF59E0B)
+            : AppTheme.successColor;
+    final String scoreLabel = score < 50
+        ? 'Resume too weak for ATS'
+        : score < 75
+            ? 'Resume needs improvements'
+            : 'Resume in good shape';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: hasAts ? 0.85 : 0.4,
+        minChildSize: 0.3,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                resume.nickname ??
+                                    resume.personal?.fullName ??
+                                    'Resume Analysis',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
+                        ),
+                        if (hasAts) ...[
+                          const SizedBox(height: 16),
+                          // Score card
+                          if (resume.atsScore != null)
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                    color: scoreColor.withValues(alpha: 0.35),
+                                    width: 2),
+                                boxShadow: AppTheme.cardShadow,
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 72,
+                                    height: 72,
+                                    child: Stack(
+                                      alignment: Alignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 72,
+                                          height: 72,
+                                          child: CircularProgressIndicator(
+                                            value: score / 100,
+                                            strokeWidth: 7,
+                                            backgroundColor: AppTheme.borderColor,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(scoreColor),
+                                            strokeCap: StrokeCap.round,
+                                          ),
+                                        ),
+                                        Text(
+                                          '$score',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: scoreColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'ATS Score',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(color: AppTheme.textSecondary),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: scoreColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            scoreLabel,
+                                            style: TextStyle(
+                                              color: scoreColor,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          // Improvement points
+                          if (resume.atsImprovements?.isNotEmpty == true) ...[
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 18, color: Color(0xFFF59E0B)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Improvement Points',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ...resume.atsImprovements!.asMap().entries.map((entry) {
+                              final idx = entry.key;
+                              final point = entry.value;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 22,
+                                      height: 22,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF59E0B),
+                                        borderRadius: BorderRadius.circular(11),
+                                      ),
+                                      child: Text(
+                                        '${idx + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        point,
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ] else ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withValues(alpha: 0.07),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: AppTheme.primaryColor.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline,
+                                    color: AppTheme.primaryColor, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'No ATS analysis available for this resume.',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: AppTheme.primaryColor,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _editManualResume(resume);
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Edit Resume',
+                                style: TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _editManualResume(Resume resume) async {
     // Buscar detalhes completos do currículo antes de editar
     final resumeProvider = Provider.of<ResumeProvider>(context, listen: false);
@@ -634,7 +987,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: AppSpinner(),
+          child: CircularProgressIndicator(),
         ),
       );
 
@@ -647,8 +1000,8 @@ class _ResumeListScreenState extends State<ResumeListScreen>
 
       if (fullResume != null && mounted) {
         Navigator.of(context).push(
-          AppTransitions.slideRight(
-            ResumeManualForm(
+          MaterialPageRoute(
+            builder: (_) => ResumeManualForm(
               initialResume: fullResume,
             ),
           ),
@@ -682,7 +1035,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: AppSpinner(),
+          child: CircularProgressIndicator(),
         ),
       );
 
@@ -699,8 +1052,8 @@ class _ResumeListScreenState extends State<ResumeListScreen>
         if (fullResume.personal != null) {
           // Tem dados estruturados, pode editar
           Navigator.of(context).push(
-            AppTransitions.slideRight(
-              ResumeManualForm(
+            MaterialPageRoute(
+              builder: (_) => ResumeManualForm(
                 initialResume: fullResume,
               ),
             ),
@@ -773,7 +1126,9 @@ class _ResumeListScreenState extends State<ResumeListScreen>
 
           if (shouldCreateNew == true && mounted) {
             Navigator.of(context).push(
-              AppTransitions.slideRight(const ResumeManualForm()),
+              MaterialPageRoute(
+                builder: (_) => const ResumeManualForm(),
+              ),
             );
           }
         }
@@ -821,7 +1176,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppTheme.borderColor,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1442,7 +1797,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(
-          child: AppSpinner(),
+          child: CircularProgressIndicator(),
         ),
       );
 
@@ -1528,5 +1883,75 @@ class _ResumeListScreenState extends State<ResumeListScreen>
         );
       }
     }
+  }
+}
+
+class _NewResumeOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _NewResumeOptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: AppTheme.borderColor),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: AppTheme.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

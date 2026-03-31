@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../config/transitions.dart';
-import '../../widgets/app_spinner.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/analytics_service.dart';
@@ -161,7 +159,9 @@ class _LoginScreenState extends State<LoginScreen> {
             child: TextButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  AppTransitions.slideRight(const ForgotPasswordScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ForgotPasswordScreen(),
+                  ),
                 );
               },
               child: Text(
@@ -188,7 +188,14 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const AppSpinnerSmall()
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : const Text('Log In'),
       ),
     );
@@ -208,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
         TextButton(
           onPressed: () {
             Navigator.of(context).push(
-              AppTransitions.slideRight(const SignUpScreen()),
+              MaterialPageRoute(builder: (_) => const SignUpScreen()),
             );
           },
           child: Text(

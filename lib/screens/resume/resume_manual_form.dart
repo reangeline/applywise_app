@@ -3,12 +3,26 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:intl/intl.dart';
 import '../../providers/resume_provider.dart';
+import '../../providers/onboarding_provider.dart';
 import '../../models/resume.dart';
+import '../../services/haptic_service.dart';
+import '../onboarding/onboarding_signup_screen.dart';
+import '../../config/transitions.dart';
 
 class ResumeManualForm extends StatefulWidget {
   final Resume? initialResume;
+  final bool forceCreate;
+  /// When true the form is being used in the onboarding flow (user not yet
+  /// signed in). On save, the payload is stored in [OnboardingProvider] and
+  /// the user is navigated to the signup screen instead of saving to the API.
+  final bool isOnboardingMode;
 
-  const ResumeManualForm({super.key, this.initialResume});
+  const ResumeManualForm({
+    super.key,
+    this.initialResume,
+    this.forceCreate = false,
+    this.isOnboardingMode = false,
+  });
 
   @override
   State<ResumeManualForm> createState() => _ResumeManualFormState();
@@ -22,6 +36,22 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
   final List<Map<String, String>> _education = [];
   final List<Map<String, String>> _projects = [];
   final List<Map<String, String>> _languages = [];
+
+  static const _validProficiencies = ['Basic', 'Conversational', 'Professional', 'Fluent', 'Native'];
+
+  static String _normalizeProficiency(String? value) {
+    if (value == null || value.isEmpty) return 'Professional';
+    if (_validProficiencies.contains(value)) return value;
+    final lower = value.toLowerCase();
+    if (lower.contains('básic') || lower.contains('basic')) return 'Basic';
+    if (lower.contains('conversacional') || lower.contains('conversational') ||
+        lower.contains('intermediário') || lower.contains('intermediate')) return 'Conversational';
+    if (lower.contains('profissional') || lower.contains('professional')) return 'Professional';
+    if (lower.contains('avançado') || lower.contains('advanced') ||
+        lower.contains('fluente') || lower.contains('fluent')) return 'Fluent';
+    if (lower.contains('nativ')) return 'Native';
+    return 'Professional';
+  }
 
   @override
   void initState() {
@@ -86,14 +116,20 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         _languages.add({
           'id': const Uuid().v4(),
           'language': lang.language,
-          'proficiency': lang.proficiency,
+          'proficiency': _normalizeProficiency(lang.proficiency),
         });
       }
     }
   }
 
-  void _next() => setState(() { if (_currentStep < 5) _currentStep++; });
-  void _back() => setState(() { if (_currentStep > 0) _currentStep--; });
+  void _next() => setState(() {
+    HapticService.selection();
+    if (_currentStep < 5) _currentStep++;
+  });
+  void _back() => setState(() {
+    HapticService.selection();
+    if (_currentStep > 0) _currentStep--;
+  });
 
   Widget _personalStep() {
     return Column(
@@ -103,37 +139,32 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Resume nickname (e.g. "Product Manager - Salesforce")'),
-          controller: TextEditingController(text: _personal['nickname'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['nickname'] ?? '').length),
+          controller: TextEditingController(text: _personal['nickname'] ?? ''),
           onChanged: (v) => _personal['nickname'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Full name'),
-          controller: TextEditingController(text: _personal['name'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['name'] ?? '').length),
+          controller: TextEditingController(text: _personal['name'] ?? ''),
           onChanged: (v) => _personal['name'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Email'),
-          controller: TextEditingController(text: _personal['email'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['email'] ?? '').length),
+          controller: TextEditingController(text: _personal['email'] ?? ''),
           onChanged: (v) => _personal['email'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Phone (optional)'),
           keyboardType: TextInputType.phone,
-          controller: TextEditingController(text: _personal['phone'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['phone'] ?? '').length),
+          controller: TextEditingController(text: _personal['phone'] ?? ''),
           onChanged: (v) => _personal['phone'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Current role / Title (e.g. Software Engineer)'),
-          controller: TextEditingController(text: _personal['role'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['role'] ?? '').length),
+          controller: TextEditingController(text: _personal['role'] ?? ''),
           onChanged: (v) => _personal['role'] = v,
         ),
         const SizedBox(height: 12),
@@ -142,8 +173,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
             Expanded(
               child: TextField(
                 decoration: const InputDecoration(labelText: 'Country (optional)'),
-                controller: TextEditingController(text: _personal['country'] ?? '')
-                  ..selection = TextSelection.collapsed(offset: (_personal['country'] ?? '').length),
+                controller: TextEditingController(text: _personal['country'] ?? ''),
                 onChanged: (v) => _personal['country'] = v,
               ),
             ),
@@ -151,8 +181,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
             Expanded(
               child: TextField(
                 decoration: const InputDecoration(labelText: 'State (optional)'),
-                controller: TextEditingController(text: _personal['state'] ?? '')
-                  ..selection = TextSelection.collapsed(offset: (_personal['state'] ?? '').length),
+                controller: TextEditingController(text: _personal['state'] ?? ''),
                 onChanged: (v) => _personal['state'] = v,
               ),
             ),
@@ -160,8 +189,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
             Expanded(
               child: TextField(
                 decoration: const InputDecoration(labelText: 'City (optional)'),
-                controller: TextEditingController(text: _personal['city'] ?? '')
-                  ..selection = TextSelection.collapsed(offset: (_personal['city'] ?? '').length),
+                controller: TextEditingController(text: _personal['city'] ?? ''),
                 onChanged: (v) => _personal['city'] = v,
               ),
             ),
@@ -170,22 +198,19 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'LinkedIn (optional)'),
-          controller: TextEditingController(text: _personal['linkedin'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['linkedin'] ?? '').length),
+          controller: TextEditingController(text: _personal['linkedin'] ?? ''),
           onChanged: (v) => _personal['linkedin'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'Personal website (optional)'),
-          controller: TextEditingController(text: _personal['website'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['website'] ?? '').length),
+          controller: TextEditingController(text: _personal['website'] ?? ''),
           onChanged: (v) => _personal['website'] = v,
         ),
         const SizedBox(height: 12),
         TextField(
           decoration: const InputDecoration(labelText: 'GitHub (optional)'),
-          controller: TextEditingController(text: _personal['github'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['github'] ?? '').length),
+          controller: TextEditingController(text: _personal['github'] ?? ''),
           onChanged: (v) => _personal['github'] = v,
         ),
       ],
@@ -207,8 +232,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
           ),
           minLines: 4,
           maxLines: 8,
-          controller: TextEditingController(text: _personal['summary'] ?? '')
-            ..selection = TextSelection.collapsed(offset: (_personal['summary'] ?? '').length),
+          controller: TextEditingController(text: _personal['summary'] ?? ''),
           onChanged: (v) => _personal['summary'] = v,
         ),
       ],
@@ -248,15 +272,13 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                   const SizedBox(height: 8),
                   TextField(
                     decoration: const InputDecoration(labelText: 'Role'),
-                    controller: TextEditingController(text: item['role'] ?? '')
-                      ..selection = TextSelection.collapsed(offset: (item['role'] ?? '').length),
+                    controller: TextEditingController(text: item['role'] ?? ''),
                     onChanged: (v) => item['role'] = v,
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     decoration: const InputDecoration(labelText: 'Company'),
-                    controller: TextEditingController(text: item['company'] ?? '')
-                      ..selection = TextSelection.collapsed(offset: (item['company'] ?? '').length),
+                    controller: TextEditingController(text: item['company'] ?? ''),
                     onChanged: (v) => item['company'] = v,
                   ),
                   const SizedBox(height: 10),
@@ -328,8 +350,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                     decoration: const InputDecoration(labelText: 'Description'),
                     minLines: 4,
                     maxLines: 8,
-                    controller: TextEditingController(text: item['desc'] ?? '')
-                      ..selection = TextSelection.collapsed(offset: (item['desc'] ?? '').length),
+                    controller: TextEditingController(text: item['desc'] ?? ''),
                     onChanged: (v) => item['desc'] = v,
                   ),
                 ],
@@ -369,15 +390,13 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                 const SizedBox(height: 8),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Institution / Course'),
-                  controller: TextEditingController(text: item['school'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['school'] ?? '').length),
+                  controller: TextEditingController(text: item['school'] ?? ''),
                   onChanged: (v) => item['school'] = v,
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Degree / Certificate'),
-                  controller: TextEditingController(text: item['degree'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['degree'] ?? '').length),
+                  controller: TextEditingController(text: item['degree'] ?? ''),
                   onChanged: (v) => item['degree'] = v,
                 ),
                 const SizedBox(height: 10),
@@ -475,15 +494,13 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                 const SizedBox(height: 8),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Project name'),
-                  controller: TextEditingController(text: item['name'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['name'] ?? '').length),
+                  controller: TextEditingController(text: item['name'] ?? ''),
                   onChanged: (v) => item['name'] = v,
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   decoration: const InputDecoration(labelText: 'URL (optional)'),
-                  controller: TextEditingController(text: item['url'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['url'] ?? '').length),
+                  controller: TextEditingController(text: item['url'] ?? ''),
                   onChanged: (v) => item['url'] = v,
                 ),
                 const SizedBox(height: 10),
@@ -491,8 +508,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                   decoration: const InputDecoration(labelText: 'Description'),
                   minLines: 3,
                   maxLines: 6,
-                  controller: TextEditingController(text: item['desc'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['desc'] ?? '').length),
+                  controller: TextEditingController(text: item['desc'] ?? ''),
                   onChanged: (v) => item['desc'] = v,
                 ),
               ]),
@@ -541,14 +557,13 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
                 const SizedBox(height: 8),
                 TextField(
                   decoration: const InputDecoration(labelText: 'Language (e.g., English, Spanish)'),
-                  controller: TextEditingController(text: item['language'] ?? '')
-                    ..selection = TextSelection.collapsed(offset: (item['language'] ?? '').length),
+                  controller: TextEditingController(text: item['language'] ?? ''),
                   onChanged: (v) => item['language'] = v,
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Proficiency'),
-                  value: item['proficiency'] ?? 'Professional',
+                  value: _normalizeProficiency(item['proficiency']),
                   items: proficiencyLevels.map((level) {
                     return DropdownMenuItem(
                       value: level,
@@ -570,15 +585,17 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
     
     // Validações básicas
     if (_personal['name']?.isEmpty ?? true) {
+      HapticService.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nome completo é obrigatório')),
+        const SnackBar(content: Text('Full name is required')),
       );
       return;
     }
     
     if (_personal['email']?.isEmpty ?? true) {
+      HapticService.error();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email é obrigatório')),
+        const SnackBar(content: Text('Email is required')),
       );
       return;
     }
@@ -629,11 +646,17 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         'language': l['language'] ?? '',
         'proficiency': l['proficiency'] ?? '',
       }).toList(),
+      // Preserve ATS data from PDF parse so it's stored in the DB
+      if (initialResume?.atsScore != null)
+        'ats_score': initialResume!.atsScore,
+      if (initialResume?.atsImprovements?.isNotEmpty == true)
+        'ats_improvements': initialResume!.atsImprovements,
     };
 
 
     try {
-      if (initialResume != null && initialResume.type == 'manual') {
+      if (!widget.forceCreate && initialResume != null &&
+          initialResume.id.isNotEmpty && initialResume.type == 'manual') {
         
         // Editando currículo manual existente → atualizar
         await provider.updateManualResume(
@@ -642,12 +665,14 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         );
         
         if (mounted) {
+          HapticService.medium();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Currículo manual atualizado com sucesso!')),
+            const SnackBar(content: Text('Manual resume updated successfully!')),
           );
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(true);
         }
-      } else if (initialResume != null && initialResume.type == 'optimized') {
+      } else if (!widget.forceCreate && initialResume != null &&
+          initialResume.id.isNotEmpty && initialResume.type == 'optimized') {
         // Editando currículo otimizado existente → atualizar como otimizado
         // Manter campos de otimização se existirem
         final optimizedPayload = {
@@ -667,27 +692,40 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
         );
         
         if (mounted) {
+          HapticService.medium();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Currículo otimizado atualizado com sucesso!')),
+            const SnackBar(content: Text('Optimized resume updated successfully!')),
           );
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(true);
         }
+      } else if (widget.isOnboardingMode) {
+
+        // Onboarding flow: store edited data in provider and go to signup.
+        // No API call yet — the signup screen will create the resume after auth.
+        if (!mounted) return;
+        context.read<OnboardingProvider>().setParsedResumeData(payload);
+        HapticService.medium();
+        Navigator.of(context).push(
+          AppTransitions.slideUp(const OnboardingSignupScreen()),
+        );
       } else {
         
         // Criando novo currículo manual
         await provider.createManualResume(payload);
         
         if (mounted) {
+          HapticService.medium();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Currículo salvo com sucesso!')),
+            const SnackBar(content: Text('Resume saved successfully!')),
           );
-          Navigator.of(context).pop();
+          Navigator.of(context).pop(true);
         }
       }
     } catch (e) {
       if (mounted) {
+        HapticService.error();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar: $e')),
+          SnackBar(content: Text('Error saving: $e')),
         );
       }
     }
@@ -695,14 +733,16 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
 
   @override
   Widget build(BuildContext context) {
-    final isEditingOptimized = widget.initialResume?.type == 'optimized';
-    final isEditingManual = widget.initialResume?.type == 'manual';
+    final isEditingOptimized = !widget.forceCreate && !widget.isOnboardingMode && widget.initialResume?.type == 'optimized';
+    final isEditingManual = !widget.forceCreate && !widget.isOnboardingMode && widget.initialResume?.type == 'manual';
     
     String title;
     if (isEditingOptimized) {
       title = 'Edit Optimized Resume';
     } else if (isEditingManual) {
       title = 'Edit Resume';
+    } else if (widget.isOnboardingMode) {
+      title = 'Review Your Resume';
     } else {
       title = 'Manual Resume';
     }
@@ -715,7 +755,7 @@ class _ResumeManualFormState extends State<ResumeManualForm> {
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Step ${_currentStep + 1} of 6', style: const TextStyle(fontWeight: FontWeight.w600)), TextButton(onPressed: () { /* could skip */ }, child: const Text('Skip'))]),
             const SizedBox(height: 12),
-            Expanded(child: SingleChildScrollView(child: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: _currentStep == 0 ? _personalStep() : _currentStep == 1 ? _summaryStep() : _currentStep == 2 ? _experienceStep() : _currentStep == 3 ? _educationStep() : _currentStep == 4 ? _projectsStep() : _languagesStep()))),
+            Expanded(child: SingleChildScrollView(child: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: KeyedSubtree(key: ValueKey(_currentStep), child: _currentStep == 0 ? _personalStep() : _currentStep == 1 ? _summaryStep() : _currentStep == 2 ? _experienceStep() : _currentStep == 3 ? _educationStep() : _currentStep == 4 ? _projectsStep() : _languagesStep())))),
             const SizedBox(height: 12),
             Row(children: [Expanded(child: OutlinedButton(onPressed: _back, child: const Text('Back'))), const SizedBox(width: 12), Expanded(child: ElevatedButton(onPressed: _currentStep == 5 ? _finish : _next, child: Text(_currentStep == 5 ? 'Finish' : 'Next')))]),
           ]),

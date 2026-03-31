@@ -6,10 +6,10 @@ import 'config/theme.dart';
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/onboarding_provider.dart';
 import 'providers/resume_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/theme_provider.dart';
-import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'services/analytics_service.dart';
@@ -44,7 +44,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
         ChangeNotifierProvider(create: (_) => ResumeProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: Consumer<ThemeProvider>(
@@ -96,14 +96,9 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     final storageService = StorageService();
-    final isFirstLaunch = storageService.isFirstLaunch();
+    storageService.isFirstLaunch(); // keeps first-launch flag logic intact
 
-    if (isFirstLaunch) {
-      // Show onboarding
-      Navigator.of(context).pushReplacement(
-        AppTransitions.fadeSlide(const OnboardingScreen()),
-      );
-    } else if (authProvider.isAuthenticated) {
+    if (authProvider.isAuthenticated) {
       // Go to home
       final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
       await subscriptionProvider.loadSubscription();
@@ -114,9 +109,9 @@ class _SplashScreenState extends State<SplashScreen> {
         AppTransitions.fadeSlide(const HomeScreen()),
       );
     } else {
-      // Show login
+      // Not authenticated: always show onboarding (new user or logged out/deleted)
       Navigator.of(context).pushReplacement(
-        AppTransitions.fadeSlide(const LoginScreen()),
+        AppTransitions.fadeSlide(const OnboardingScreen()),
       );
     }
   }

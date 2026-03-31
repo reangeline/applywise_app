@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../config/transitions.dart';
-import '../../widgets/app_spinner.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/analytics_service.dart';
 import 'reset_password_screen.dart';
@@ -114,7 +112,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const AppSpinnerSmall()
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : const Text('Send Reset Code'),
       ),
     );
@@ -137,8 +142,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       AnalyticsService.instance.logPasswordResetRequested();
 
       Navigator.of(context).pushReplacement(
-        AppTransitions.slideRight(
-          ResetPasswordScreen(
+        MaterialPageRoute(
+          builder: (_) => ResetPasswordScreen(
             email: _emailController.text.trim(),
           ),
         ),

@@ -7,6 +7,7 @@ import '../../providers/subscription_provider.dart';
 import '../../widgets/app_spinner.dart';
 import '../../config/transitions.dart';
 import '../../services/analytics_service.dart';
+import '../../services/haptic_service.dart';
 import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_of_service_screen.dart';
 
@@ -40,8 +41,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
     
     if (mounted && subscriptionProvider.packages.isNotEmpty) {
       setState(() {
-        // Selecionar primeiro pacote por padrão
-        _selectedPackage = subscriptionProvider.packages.first;
+        // Selecionar plano anual por padrão (melhor valor)
+        _selectedPackage = subscriptionProvider.packages.firstWhere(
+          (p) {
+            final id = p.identifier.toLowerCase();
+            return id.contains('annual') || id.contains('yearly');
+          },
+          orElse: () => subscriptionProvider.packages.first,
+        );
       });
     }
   }
@@ -151,11 +158,42 @@ class _PaywallScreenState extends State<PaywallScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Get unlimited access to all features',
+          'Land more interviews with AI-powered resume and LinkedIn optimization',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: AppTheme.textSecondary,
           ),
           textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Text(
+            '🎉  Try free for 7 days',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('⭐⭐⭐⭐⭐', style: TextStyle(fontSize: 13)),
+            const SizedBox(width: 6),
+            Text(
+              'Join job seekers landing more interviews',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -165,7 +203,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final features = [
       {'icon': Icons.auto_awesome, 'text': 'Unlimited Resume Optimizations'},
       {'icon': Icons.bolt, 'text': 'AI-Powered Suggestions'},
-      {'icon': Icons.link, 'text': 'Tips to improve LinkedIn Profiles'},
+      {'icon': Icons.link, 'text': 'LinkedIn Profile Optimization included'},
 
     ];
 
@@ -209,12 +247,20 @@ class _PaywallScreenState extends State<PaywallScreen> {
         // Detectar se é anual/yearly para mostrar desconto
         String? discount;
         final identifier = package.identifier.toLowerCase();
-        if (identifier.contains('annual') || identifier.contains('yearly')) {
-          discount = 'SAVE 17%';
+        final isBestValue = identifier.contains('annual') || identifier.contains('yearly');
+        if (isBestValue) {
+          discount = 'SAVE 33%';
         }
 
-        return GestureDetector(
-          onTap: () => setState(() => _selectedPackage = package),
+        return Semantics(
+          label: '${_formatTitle(product.title)}, ${product.priceString}${isSelected ? ", selected" : ""}',
+          button: true,
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: () {
+              HapticService.selection();
+              setState(() => _selectedPackage = package);
+            },
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
@@ -244,14 +290,35 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             _formatTitle(product.title),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          if (discount != null) ...[
-                            const SizedBox(width: 8),
+                          if (isBestValue)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'BEST VALUE',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          if (discount != null)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -270,7 +337,6 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                 ),
                               ),
                             ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -286,16 +352,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                Text(
-                  product.priceString,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      product.priceString,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (isBestValue) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _monthlyEquivalent(package),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
+        ),
         );
       }).toList(),
     );
@@ -305,6 +386,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
     // Remover texto entre parênteses (nome do app)
     final cleaned = title.split('(').first.trim();
     return cleaned;
+  }
+
+  String _monthlyEquivalent(Package package) {
+    final monthly = package.storeProduct.price / 12;
+    final priceStr = package.storeProduct.priceString;
+    final match = RegExp(r'^[^\d]+').firstMatch(priceStr);
+    final symbol = match?.group(0) ?? r'$';
+    return 'just $symbol${monthly.toStringAsFixed(2)}/month';
+  }
+
+  String _buildButtonLabel() {
+    if (_selectedPackage == null) return 'Subscribe Now';
+    final product = _selectedPackage!.storeProduct;
+    final identifier = _selectedPackage!.identifier.toLowerCase();
+    final String period;
+    if (identifier.contains('annual') || identifier.contains('yearly')) {
+      period = '/year';
+    } else if (identifier.contains('quarter') || identifier.contains('tri')) {
+      period = '/3 months';
+    } else if (identifier.contains('month')) {
+      period = '/month';
+    } else {
+      period = '';
+    }
+    return 'Get PRO – ${product.priceString}$period';
   }
 
   Widget _buildPurchaseButton() {
@@ -321,9 +427,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
         ),
         child: _isPurchasing
             ? const AppSpinnerSmall()
-            : const Text(
-                'Subscribe Now',
-                style: TextStyle(
+            : Text(
+                _buildButtonLabel(),
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -400,6 +506,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isPurchasing = false);
 
     if (success) {
+      HapticService.heavy();
       AnalyticsService.instance.logSubscriptionPurchased(packageId: packageId);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -416,6 +523,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         Navigator.pop(context);
       }
     } else {
+      HapticService.error();
       AnalyticsService.instance.logSubscriptionFailed(packageId: packageId);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -442,6 +550,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _isPurchasing = false);
 
     if (success) {
+      HapticService.medium();
       AnalyticsService.instance.logPurchasesRestored();
 
       ScaffoldMessenger.of(context).showSnackBar(

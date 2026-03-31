@@ -56,7 +56,7 @@ class NotificationService {
   Future<void> _requestPermissions() async {
     if (_messaging == null) return;
     
-    final settings = await _messaging!.requestPermission(
+    await _messaging!.requestPermission(
       alert: true,
       badge: true,
       sound: true,

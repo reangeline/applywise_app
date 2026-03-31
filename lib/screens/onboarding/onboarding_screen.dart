@@ -4,7 +4,7 @@ import '../../config/theme.dart';
 import '../../config/transitions.dart';
 import '../../services/analytics_service.dart';
 import '../../services/storage_service.dart';
-import '../auth/login_screen.dart';
+import 'resume_entry_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -177,20 +177,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        _pages.length,
-        (index) => AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: _currentPage == index ? 24 : 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: _currentPage == index
-                ? AppTheme.primaryColor
-                : AppTheme.borderColor,
-            borderRadius: BorderRadius.circular(4),
+    return Semantics(
+      label: 'Page ${_currentPage + 1} of ${_pages.length}',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(
+          _pages.length,
+          (index) => AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            width: _currentPage == index ? 24 : 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: _currentPage == index
+                  ? AppTheme.primaryColor
+                  : AppTheme.borderColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ),
       ),
@@ -203,7 +207,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
-      AppTransitions.fadeSlide(const LoginScreen()),
+      AppTransitions.fadeSlide(const ResumeEntryScreen()),
     );
   }
 

@@ -14,18 +14,22 @@ class AuthService {
     required String name,
     required String termsAcceptedAt,
     required String termsVersion,
+    Map<String, dynamic>? parsedResume,
   }) async {
     try {
       
+      final body = <String, dynamic>{
+        'email': email,
+        'password': password,
+        'name': name,
+        'terms_accepted_at': termsAcceptedAt,
+        'terms_version': termsVersion,
+      };
+      if (parsedResume != null) body['parsed_resume'] = parsedResume;
+
       final response = await _apiService.post(
         AppConstants.signUpEndpoint,
-        {
-          'email': email,
-          'password': password,
-          'name': name,
-          'terms_accepted_at': termsAcceptedAt,
-          'terms_version': termsVersion,
-        },
+        body,
       );
 
 
@@ -185,8 +189,46 @@ class AuthService {
     }
   }
 
+  /// Returns a valid (non-expired) access token, refreshing it first if needed.
+  /// Returns null if there is no token or if the refresh fails.
+  Future<String?> ensureFreshAccessToken() async {
+    final token = await _storageService.getAccessToken();
+    if (token == null) return null;
+
+    try {
+      if (JwtDecoder.isExpired(token)) {
+        return await refreshToken();
+      }
+    } catch (_) {
+      // If expiry check fails, attempt a refresh defensively.
+      return await refreshToken();
+    }
+
+    return token;
+  }
+
   Future<void> signOut() async {
     await _storageService.clearAll();
+  }
+
+  Future<AuthResult> updateProfile({required String name}) async {
+    try {
+      final accessToken = await _storageService.getAccessToken();
+      if (accessToken == null) throw Exception('Not authenticated');
+
+      final response = await _apiService.patch(
+        AppConstants.userMeEndpoint,
+        {'name': name},
+        token: accessToken,
+      );
+
+      final updatedName = response['name'] as String? ?? name;
+      await _storageService.saveUserName(updatedName);
+
+      return AuthResult(success: true);
+    } catch (e) {
+      return AuthResult(success: false, error: _formatError(e));
+    }
   }
 
   Future<AuthResult> deleteAccount() async {
@@ -445,6 +487,70 @@ class AuthService {
     
     // Retornar erro limpo se não for reconhecido
     return cleanError;
+  }
+
+  // ─── Social Authentication ────────────────────────────────────────────────
+
+  /// Authenticates with a social provider token.
+  ///
+  /// The backend endpoint [AppConstants.socialAuthEndpoint] must accept:
+  ///   { "provider": "apple"|"google", "id_token": "...", "name": "..." }
+  /// and return the same token structure as signUp/signIn.
+  Future<AuthResult> signInWithSocial({
+    required String provider,
+    required String idToken,
+    String? name,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'provider': provider,
+        'id_token': idToken,
+      };
+      if (name != null && name.isNotEmpty) body['name'] = name;
+
+      final response = await _apiService.post(
+        AppConstants.socialAuthEndpoint,
+        body,
+      );
+
+      final accessToken =
+          (response['access_token'] ?? response['AccessToken']) as String?;
+      final refreshToken =
+          (response['refresh_token'] ?? response['RefreshToken']) as String?;
+      final idTokenResp =
+          (response['id_token'] ?? response['IDToken']) as String?;
+
+      if (accessToken == null || refreshToken == null || idTokenResp == null) {
+        throw Exception('Missing tokens in response');
+      }
+
+      final decoded = JwtDecoder.decode(idTokenResp);
+      final userId = decoded['sub'] as String;
+      final userEmail = decoded['email'] as String? ?? '';
+      final userName =
+          decoded['name'] as String? ?? name ?? userEmail.split('@').first;
+      final emailVerified = decoded['email_verified'] as bool? ?? true;
+
+      final user = User(id: userId, email: userEmail, name: userName);
+
+      await _storageService.saveAccessToken(accessToken);
+      await _storageService.saveRefreshToken(refreshToken);
+      await _storageService.saveIdToken(idTokenResp);
+      await _storageService.saveUserId(user.id);
+      await _storageService.saveUserEmail(user.email);
+      await _storageService.saveUserName(user.name);
+      await _storageService.saveEmailVerified(
+          response['email_verified'] as bool? ?? emailVerified);
+
+      return AuthResult(
+        success: true,
+        user: user,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      );
+    } catch (e) {
+      return AuthResult(success: false, error: _formatError(e));
+    }
   }
 }
 

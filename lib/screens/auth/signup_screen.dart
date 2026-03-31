@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../config/transitions.dart';
-import '../../widgets/app_spinner.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/onboarding_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/analytics_service.dart';
 import '../home/home_screen.dart';
@@ -253,7 +252,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
           backgroundColor: AppTheme.primaryColor,
         ),
         child: _isLoading
-            ? const AppSpinnerSmall()
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : const Text('Sign Up'),
       ),
     );
@@ -274,7 +280,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: GestureDetector(
             onTap: () {
               Navigator.of(context).push(
-                AppTransitions.slideRight(const TermsOfServiceScreen()),
+                MaterialPageRoute(
+                  builder: (_) => const TermsOfServiceScreen(),
+                ),
               );
             },
             child: RichText(
@@ -317,12 +325,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => _isLoading = true);
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // Include parsed resume data if the user went through PDF onboarding first.
+    final parsedResume = context.read<OnboardingProvider>().parsedResumeData;
     final result = await authProvider.signUp(
       email: _emailController.text.trim(),
       password: _passwordController.text,
       name: _nameController.text.trim(),
       termsAcceptedAt: DateTime.now().toUtc().toIso8601String(),
       termsVersion: AppConstants.termsVersion,
+      parsedResume: parsedResume,
     );
 
     if (!mounted) return;

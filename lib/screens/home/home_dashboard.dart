@@ -7,6 +7,8 @@ import '../../providers/subscription_provider.dart';
 import '../../providers/resume_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../services/analytics_service.dart';
+import '../../services/haptic_service.dart';
+import '../../widgets/skeleton_loader.dart';
 import '../../services/widget_service.dart';
 import '../subscription/paywall_screen.dart';
 import '../subscription/credits_paywall_screen.dart';
@@ -61,7 +63,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     if (mounted) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       WidgetService.update(
-        userName: authProvider.user?.name?.split(' ').first ?? 'Hirefy',
+        userName: authProvider.user?.name.split(' ').first ?? 'Hirefy',
         isPro: subscriptionProvider.isPro,
         credits: subscriptionProvider.credits,
         resumeCount: resumeProvider.resumes.length,
@@ -101,7 +103,9 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
     return Scaffold(
       body: SafeArea(
-        child: RefreshIndicator(
+        child: subscriptionProvider.isLoading || resumeProvider.isLoading
+            ? const HomeDashboardSkeleton()
+            : RefreshIndicator(
           onRefresh: _loadData,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -252,53 +256,60 @@ class _HomeDashboardState extends State<HomeDashboard> {
                 ),
               ],
             ),
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  AppTransitions.fadeSlide(const NotificationsScreen()),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: AppTheme.cardShadow,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Icon(
-                      Icons.notifications_outlined,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          constraints: const BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: AppTheme.errorColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              unreadCount > 9 ? '9+' : '$unreadCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+            Semantics(
+              label: unreadCount > 0
+                  ? 'Notifications, $unreadCount unread'
+                  : 'Notifications',
+              button: true,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(
+                    AppTransitions.fadeSlide(const NotificationsScreen()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: AppTheme.cardShadow,
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        Icons.notifications_outlined,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: AppTheme.errorColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                unreadCount > 9 ? '9+' : '$unreadCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -538,9 +549,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
         if (allSuggestions.length > 5) ...[
           const SizedBox(height: 8),
           Center(
-            child: GestureDetector(
-              onTap: () => _showAllSuggestions(context, allSuggestions),
-              child: Container(
+            child: Semantics(
+              button: true,
+              child: GestureDetector(
+                onTap: () => _showAllSuggestions(context, allSuggestions),
+                child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryColor.withValues(alpha: 0.08),
@@ -570,6 +583,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
               ),
             ),
           ),
+        ),
         ],
       ],
     );
@@ -766,7 +780,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        HapticService.light();
+        onTap();
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),

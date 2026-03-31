@@ -21,8 +21,10 @@ class AppConstants {
   static const String optimizeJobsEndpoint = '/api/v1/resumes/optimize/jobs';
   static const String resumesEndpoint = '/api/v1/resumes';
   static const String createManualResumeEndpoint = '/api/v1/resumes/manual';
+  static const String parsePdfResumeEndpoint = '/api/v1/resumes/parse-pdf';
   static const String userMeEndpoint = '/api/v1/users/me';
   static const String deleteAccountEndpoint = '/api/v1/users/me';
+  static const String socialAuthEndpoint = '/api/v1/auth/social';
 
 
   // RevenueCat Configuration — injetado via --dart-define-from-file

@@ -11,7 +11,9 @@ import '../../providers/subscription_provider.dart';
 import '../../widgets/pro_feature_gate.dart';
 
 class ResumeOptimizerScreen extends StatefulWidget {
-  const ResumeOptimizerScreen({super.key});
+  final String? initialJobDescription;
+
+  const ResumeOptimizerScreen({super.key, this.initialJobDescription});
 
   @override
   State<ResumeOptimizerScreen> createState() => _ResumeOptimizerScreenState();
@@ -29,12 +31,27 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
   @override
   void initState() {
     super.initState();
+    // Pre-fill job description if opened from Share Extension
+    if (widget.initialJobDescription != null && widget.initialJobDescription!.isNotEmpty) {
+      _jobDescriptionController.text = widget.initialJobDescription!;
+    }
     // load saved resumes after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final resumeProvider =
           Provider.of<ResumeProvider>(context, listen: false);
       resumeProvider.loadResumes();
     });
+  }
+
+  @override
+  void didUpdateWidget(ResumeOptimizerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update controller if parent passes new shared text after app resumes
+    if (widget.initialJobDescription != null &&
+        widget.initialJobDescription!.isNotEmpty &&
+        widget.initialJobDescription != oldWidget.initialJobDescription) {
+      _jobDescriptionController.text = widget.initialJobDescription!;
+    }
   }
 
   @override

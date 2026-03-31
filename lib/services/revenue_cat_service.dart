@@ -85,9 +85,6 @@ class RevenueCatService {
       
       final packages = offerings.current!.availablePackages;
       
-      for (var package in packages) {
-      }
-      
       return packages;
     } catch (e) {
       return [];
@@ -169,9 +166,6 @@ class RevenueCatService {
         ['credits_5', 'credits_10', 'credits_20'],
         type: PurchaseType.inapp,
       );
-      
-      for (var product in products) {
-      }
       
       return products;
     } catch (e) {

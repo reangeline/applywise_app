@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/revenue_cat_service.dart';
@@ -62,6 +64,7 @@ class AuthProvider with ChangeNotifier {
     required String name,
     required String termsAcceptedAt,
     required String termsVersion,
+    Map<String, dynamic>? parsedResume,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -72,6 +75,7 @@ class AuthProvider with ChangeNotifier {
       name: name,
       termsAcceptedAt: termsAcceptedAt,
       termsVersion: termsVersion,
+      parsedResume: parsedResume,
     );
 
     if (result.success && result.user != null) {
@@ -127,6 +131,22 @@ class AuthProvider with ChangeNotifier {
     _user = null;
     _isAuthenticated = false;
     notifyListeners();
+  }
+
+  Future<AuthResult> updateProfile({required String name}) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final result = await _authService.updateProfile(name: name);
+
+    if (result.success && _user != null) {
+      _user = _user!.copyWith(name: name);
+    }
+
+    _isLoading = false;
+    notifyListeners();
+
+    return result;
   }
 
   Future<AuthResult> deleteAccount() async {
@@ -202,5 +222,102 @@ class AuthProvider with ChangeNotifier {
       code: code,
       newPassword: newPassword,
     );
+  }
+
+  // ─── Social Authentication ────────────────────────────────────────────────
+
+  /// Signs in with Apple ID.  The backend must implement POST /api/v1/auth/social.
+  Future<AuthResult> signInWithApple() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        return AuthResult(
+            success: false, error: 'Could not retrieve Apple token.');
+      }
+
+      final name = [credential.givenName, credential.familyName]
+          .where((s) => s != null && s.isNotEmpty)
+          .join(' ');
+
+      final result = await _authService.signInWithSocial(
+        provider: 'apple',
+        idToken: idToken,
+        name: name.isEmpty ? null : name,
+      );
+
+      if (result.success && result.user != null) {
+        _user = result.user;
+        _isAuthenticated = true;
+        try {
+          await _revenueCatService.initialize(_user!.id);
+        } catch (e) {
+          debugPrint('Failed to initialize RevenueCat: $e');
+        }
+      }
+      return result;
+    } catch (e) {
+      if (e is SignInWithAppleAuthorizationException &&
+          e.code == AuthorizationErrorCode.canceled) {
+        return AuthResult(success: false, error: 'Sign-in cancelled.');
+      }
+      return AuthResult(
+          success: false, error: 'Error signing in with Apple. Please try again.');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Signs in with Google.  The backend must implement POST /api/v1/auth/social.
+  Future<AuthResult> signInWithGoogle() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final googleSignIn = GoogleSignIn();
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        // User cancelled
+        return AuthResult(success: false, error: 'Sign-in cancelled.');
+      }
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        return AuthResult(
+            success: false, error: 'Could not retrieve Google token.');
+      }
+
+      final result = await _authService.signInWithSocial(
+        provider: 'google',
+        idToken: idToken,
+        name: account.displayName,
+      );
+
+      if (result.success && result.user != null) {
+        _user = result.user;
+        _isAuthenticated = true;
+        try {
+          await _revenueCatService.initialize(_user!.id);
+        } catch (e) {
+          debugPrint('Failed to initialize RevenueCat: $e');
+        }
+      }
+      return result;
+    } catch (e) {
+      return AuthResult(
+          success: false,
+          error: 'Error signing in with Google. Please try again.');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 }

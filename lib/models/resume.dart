@@ -440,6 +440,10 @@ class Resume {
   // Para currículos LinkedIn
   final LinkedInOptimizedData? linkedInData;
 
+  // ATS data from PDF parse
+  final int? atsScore;
+  final List<String>? atsImprovements;
+
   Resume({
     required this.id,
     required this.type,
@@ -459,6 +463,8 @@ class Resume {
     this.targetRole,
     this.salaryEstimate,
     this.linkedInData,
+    this.atsScore,
+    this.atsImprovements,
   });
 
   factory Resume.fromJson(Map<String, dynamic> json) {
@@ -588,6 +594,10 @@ class Resume {
       linkedInData: parsedDataType == 'linkedin'
           ? LinkedInOptimizedData.fromJson(json)
           : null,
+      atsScore: finalData['ats_score'] is num
+          ? (finalData['ats_score'] as num).round()
+          : null,
+      atsImprovements: toStringList(finalData['ats_improvements']),
     );
   }
 
@@ -640,6 +650,8 @@ class Resume {
     String? targetRole,
     SalaryEstimate? salaryEstimate,
     LinkedInOptimizedData? linkedInData,
+    int? atsScore,
+    List<String>? atsImprovements,
   }) {
     return Resume(
       id: id ?? this.id,
@@ -659,6 +671,8 @@ class Resume {
       targetRole: targetRole ?? this.targetRole,
       salaryEstimate: salaryEstimate ?? this.salaryEstimate,
       linkedInData: linkedInData ?? this.linkedInData,
+      atsScore: atsScore ?? this.atsScore,
+      atsImprovements: atsImprovements ?? this.atsImprovements,
     );
   }
 }

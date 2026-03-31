@@ -207,6 +207,43 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> patch(
+    String endpoint,
+    Map<String, dynamic> body, {
+    required String token,
+  }) async {
+    try {
+      http.Response response = await http.patch(
+        Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+
+      // Retry on 401 using registered refresher (single-flight)
+      if (response.statusCode == 401 && _tokenRefresher != null) {
+        final newToken = await _performRefresh();
+        if (newToken != null) {
+          response = await http.patch(
+            Uri.parse('${AppConstants.apiBaseUrl}$endpoint'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $newToken',
+            },
+            body: jsonEncode(body),
+          );
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Network error: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> delete(
     String endpoint, {
     required String token,
@@ -231,6 +268,60 @@ class ApiService {
               'Authorization': 'Bearer $newToken',
             },
           );
+        }
+      }
+
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Network error: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> postMultipart(
+    String endpoint,
+    String fieldName,
+    List<int> fileBytes,
+    String fileName, {
+    String? token,
+    Map<String, String>? fields,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConstants.apiBaseUrl}$endpoint');
+      final request = http.MultipartRequest('POST', url);
+
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          fieldName,
+          fileBytes,
+          filename: fileName,
+        ),
+      );
+
+      http.StreamedResponse streamed = await request.send();
+      http.Response response = await http.Response.fromStream(streamed);
+
+      // Retry on 401
+      if (response.statusCode == 401 &&
+          _tokenRefresher != null &&
+          endpoint != AppConstants.refreshTokenEndpoint) {
+        final newToken = await _performRefresh();
+        if (newToken != null) {
+          final retryRequest = http.MultipartRequest('POST', url);
+          retryRequest.headers['Authorization'] = 'Bearer $newToken';
+          if (fields != null) retryRequest.fields.addAll(fields);
+          retryRequest.files.add(
+            http.MultipartFile.fromBytes(fieldName, fileBytes, filename: fileName),
+          );
+          final retryStreamed = await retryRequest.send();
+          response = await http.Response.fromStream(retryStreamed);
         }
       }
 
