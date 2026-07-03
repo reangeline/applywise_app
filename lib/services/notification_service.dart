@@ -11,6 +11,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 class NotificationService {
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
+
+  static const _fcmTokenEndpoint = '/api/v1/users/me/fcm-token';
+
   FirebaseMessaging? _messaging;
   final FlutterLocalNotificationsPlugin _localNotifications = 
       FlutterLocalNotificationsPlugin();
@@ -20,8 +26,17 @@ class NotificationService {
   // Stream de notificações in-app
   final List<Map<String, dynamic>> _notifications = [];
   Function(List<Map<String, dynamic>>)? onNotificationsUpdated;
+
+  /// Fired whenever a push arrives indicating an optimization completed.
+  /// Receives the FCM `data` map so the handler can fetch the right resume.
+  Function(Map<String, dynamic>)? onOptimizationComplete;
   
   bool _isInitialized = false;
+  bool _isPushReadyForCurrentSession = false;
+  String? _lastRegisteredUserId;
+  String? _lastRegisteredFcmToken;
+
+  bool get isPushReadyForCurrentSession => _isPushReadyForCurrentSession;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -97,28 +112,81 @@ class NotificationService {
     try {
       final token = await _messaging!.getToken();
       if (token != null) {
-        await _sendTokenToBackend(token);
+        await _sendTokenToBackend(token, force: true);
       }
       
       // Listener para quando o token é atualizado
-      _messaging!.onTokenRefresh.listen(_sendTokenToBackend);
+      _messaging!.onTokenRefresh.listen((token) async {
+        _markPushUnready();
+        await _sendTokenToBackend(token, force: true);
+      });
     } catch (e) {
+      _markPushUnready();
     }
   }
 
-  Future<void> _sendTokenToBackend(String token) async {
+  void _markPushUnready() {
+    _isPushReadyForCurrentSession = false;
+  }
+
+  Future<bool> _sendTokenToBackend(
+    String token, {
+    bool force = false,
+  }) async {
     try {
       final authToken = await _storageService.getAccessToken();
-      if (authToken == null) return;
+      final userId = _storageService.getUserId();
+      if (authToken == null || userId == null || token.isEmpty) {
+        _markPushUnready();
+        return false;
+      }
+
+      if (!force &&
+          _isPushReadyForCurrentSession &&
+          _lastRegisteredUserId == userId &&
+          _lastRegisteredFcmToken == token) {
+        return true;
+      }
       
       await _apiService.post(
-        '/api/v1/users/me/fcm-token',
+        _fcmTokenEndpoint,
         {'fcm_token': token},
         token: authToken,
       );
-      
+
+      _isPushReadyForCurrentSession = true;
+      _lastRegisteredUserId = userId;
+      _lastRegisteredFcmToken = token;
+      return true;
     } catch (e) {
+      _markPushUnready();
+      return false;
     }
+  }
+
+  Future<bool> ensurePushRegistrationForCurrentSession({bool force = false}) async {
+    _messaging ??= FirebaseMessaging.instance;
+
+    final authToken = await _storageService.getAccessToken();
+    final userId = _storageService.getUserId();
+    if (authToken == null || userId == null) {
+      _markPushUnready();
+      return false;
+    }
+
+    final token = await _messaging!.getToken();
+    if (token == null || token.isEmpty) {
+      _markPushUnready();
+      return false;
+    }
+
+    return _sendTokenToBackend(token, force: force);
+  }
+
+  void resetPushRegistrationState() {
+    _isPushReadyForCurrentSession = false;
+    _lastRegisteredUserId = null;
+    _lastRegisteredFcmToken = null;
   }
 
   void _setupMessageHandlers() {
@@ -165,6 +233,9 @@ class NotificationService {
     
     _notifications.insert(0, notification);
     onNotificationsUpdated?.call(_notifications);
+
+    // Fire optimization-complete callback so the pipeline card updates instantly
+    _maybeFireOptimizationComplete(message.data);
   }
 
   void _handleNotificationClick(RemoteMessage message) {
@@ -176,8 +247,23 @@ class NotificationService {
       onNotificationsUpdated?.call(_notifications);
     }
     
-    // Aqui você pode navegar para tela específica
-    // baseado em message.data['type'] ou message.data['screen']
+    // Fire optimization-complete callback (handles tap-from-background case)
+    _maybeFireOptimizationComplete(message.data);
+  }
+
+  static const _kOptimizationTypes = {
+    'resume_optimized',
+    'resume_ready',
+    'linkedin_optimized',
+    'linkedin_ready',
+    'optimization_complete',
+  };
+
+  void _maybeFireOptimizationComplete(Map<String, dynamic> data) {
+    final type = data['type']?.toString();
+    if (type != null && _kOptimizationTypes.contains(type)) {
+      onOptimizationComplete?.call(data);
+    }
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
@@ -225,6 +311,7 @@ class NotificationService {
       try {
         await _messaging?.deleteToken();
       } catch (e) {
+        _markPushUnready();
       }
     }
   }

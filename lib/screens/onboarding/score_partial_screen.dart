@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../config/transitions.dart';
+import '../../models/onboarding_models.dart';
 import '../../models/resume.dart';
 import '../../providers/onboarding_provider.dart';
 import '../resume/resume_manual_form.dart';
@@ -41,9 +42,9 @@ class ScorePartialScreen extends StatelessWidget {
               if (result.totalIssues > 0)
                 _buildIssuesBanner(context, result.totalIssues),
               const SizedBox(height: 20),
-              _buildCategoriesSection(context, result.problemCategories),
+              _buildCategoriesSection(context, result),
               const SizedBox(height: 32),
-              _buildCta(context),
+              _buildCta(context, score),
               const SizedBox(height: 16),
             ],
           ),
@@ -152,7 +153,21 @@ class ScorePartialScreen extends StatelessWidget {
   }
 
   Widget _buildCategoriesSection(
-      BuildContext context, List<String> categories) {
+      BuildContext context, OnboardingAtsResult result) {
+    final categories = result.problemCategories;
+
+    // Extract first real keyword detail from rawData
+    final parsed =
+        result.rawData['parsed_data'] as Map<String, dynamic>? ?? result.rawData;
+    final missing = <String>[];
+    final mr = parsed['missing_requirements'];
+    if (mr is List) missing.addAll(mr.map((e) => e.toString()));
+    if (missing.isEmpty) {
+      final rmr = result.rawData['missing_requirements'];
+      if (rmr is List) missing.addAll(rmr.map((e) => e.toString()));
+    }
+    final firstDetail = missing.isNotEmpty ? missing.first : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -162,22 +177,63 @@ class ScorePartialScreen extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Unlock your account to see the details and fix suggestions.',
+          'Sign up to see all details and fix suggestions.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppTheme.textSecondary,
               ),
         ),
         const SizedBox(height: 12),
-        ...categories
-            .map((cat) => _LockedCategoryRow(label: cat)),
+        if (categories.isNotEmpty)
+          _UnlockedCategoryRow(
+            label: categories.first,
+            detail: firstDetail,
+          ),
+        ...categories.skip(1).map((cat) => _LockedCategoryRow(label: cat)),
+        const SizedBox(height: 16),
+        _buildProgressHint(context),
       ],
     );
   }
 
-  Widget _buildCta(BuildContext context) {
+  Widget _buildProgressHint(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: 0.25,
+            minHeight: 6,
+            backgroundColor:
+                Theme.of(context).colorScheme.outline.withValues(alpha: 0.15),
+            valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "You're 1 step away from seeing everything",
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCta(BuildContext context, int score) {
     final parsedData =
         context.read<OnboardingProvider>().parsedResumeData;
     final hasParsedData = parsedData != null;
+
+    final String ctaLabel = hasParsedData
+        ? 'Review & Edit Your Resume'
+        : score < 60
+            ? 'Fix critical issues — free for 7 days'
+            : score < 80
+                ? 'See all issues and fix them free'
+                : 'Fine-tune your resume for free';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -218,9 +274,7 @@ class ScorePartialScreen extends StatelessWidget {
               ),
             ),
             child: Text(
-              hasParsedData
-                  ? 'Review & Edit Your Resume'
-                  : 'See details and fix for free',
+              ctaLabel,
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -295,6 +349,89 @@ class _ScoreCircle extends StatelessWidget {
   }
 }
 
+// ─── Unlocked category row (first category only) ─────────────────────────────
+
+class _UnlockedCategoryRow extends StatelessWidget {
+  final String label;
+  final String? detail;
+
+  const _UnlockedCategoryRow({required this.label, this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.error,
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  if (detail != null) ...
+                    [
+                      const SizedBox(height: 4),
+                      Text(
+                        detail!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.6),
+                            ),
+                      ),
+                    ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Preview',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Locked category row ─────────────────────────────────────────────────────
 
 class _LockedCategoryRow extends StatelessWidget {
@@ -311,13 +448,17 @@ class _LockedCategoryRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.borderColor),
+          border: Border.all(
+              color: Theme.of(context)
+                  .colorScheme
+                  .outline
+                  .withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.error_outline,
-              color: AppTheme.errorColor,
+              color: Theme.of(context).colorScheme.error,
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -338,7 +479,10 @@ class _LockedCategoryRow extends StatelessWidget {
                       child: Container(
                         height: 10,
                         decoration: BoxDecoration(
-                          color: AppTheme.textTertiary.withValues(alpha: 0.4),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -348,10 +492,13 @@ class _LockedCategoryRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(
+            Icon(
               Icons.lock_outline,
               size: 18,
-              color: AppTheme.textTertiary,
+              color: Theme.of(context)
+                  .colorScheme
+                  .outline
+                  .withValues(alpha: 0.6),
             ),
           ],
         ),

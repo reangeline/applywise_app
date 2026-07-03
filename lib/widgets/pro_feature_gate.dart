@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../config/theme.dart';
 import '../config/transitions.dart';
-import '../screens/subscription/paywall_screen.dart';
 import '../screens/subscription/credits_paywall_screen.dart';
 
 class ProFeatureGate extends StatelessWidget {
@@ -77,9 +77,7 @@ class ProFeatureGate extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).push(
-                        AppTransitions.slideUp(const PaywallScreen()),
-                      );
+                      RevenueCatUI.presentPaywall();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,

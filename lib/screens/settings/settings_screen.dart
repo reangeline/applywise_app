@@ -6,6 +6,9 @@ import '../../config/theme.dart';
 import '../../config/constants.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../providers/onboarding_provider.dart';
+import '../../providers/pipeline_provider.dart';
+import '../../providers/resume_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../config/transitions.dart';
@@ -471,6 +474,10 @@ class SettingsScreen extends StatelessWidget {
     Navigator.of(context).pop(); // dismiss loading
 
     if (result.success) {
+      await _clearSessionCaches(context);
+
+      if (!context.mounted) return;
+
       Navigator.of(context).pushAndRemoveUntil(
         AppTransitions.fadeSlide(const OnboardingScreen()),
         (route) => false,
@@ -513,11 +520,29 @@ class SettingsScreen extends StatelessWidget {
 
       if (!context.mounted) return;
 
+      await _clearSessionCaches(context);
+
+      if (!context.mounted) return;
+
       Navigator.of(context).pushAndRemoveUntil(
         AppTransitions.fadeSlide(const OnboardingScreen()),
         (route) => false,
       );
     }
+  }
+
+  Future<void> _clearSessionCaches(BuildContext context) async {
+    final pipelineProvider = context.read<PipelineProvider>();
+    final resumeProvider = context.read<ResumeProvider>();
+    final subscriptionProvider = context.read<SubscriptionProvider>();
+    final notificationProvider = context.read<NotificationProvider>();
+    final onboardingProvider = context.read<OnboardingProvider>();
+
+    await pipelineProvider.reset();
+    resumeProvider.reset();
+    subscriptionProvider.reset();
+    notificationProvider.reset();
+    onboardingProvider.clear();
   }
 }
 

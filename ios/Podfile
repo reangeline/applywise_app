@@ -39,5 +39,31 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # Fix: rename FileUtils in file_picker to avoid collision with OSAnalytics.framework
+    if target.name == 'file_picker'
+      target.build_configurations.each do |config|
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'FileUtils=FlutterFilePickerUtils'
+      end
+    end
+  end
+
+  # Fix file_picker FileUtils source collision via shell rename
+  file_picker_utils = installer.sandbox.pod_dir('file_picker').join('ios/Classes/FileUtils.m')
+  if File.exist?(file_picker_utils.to_s)
+    content = File.read(file_picker_utils.to_s)
+    unless content.include?('FlutterFilePickerUtils')
+      content = content.gsub(/\bFileUtils\b/, 'FlutterFilePickerUtils')
+      File.write(file_picker_utils.to_s, content)
+    end
+  end
+  file_picker_utils_h = installer.sandbox.pod_dir('file_picker').join('ios/Classes/FileUtils.h')
+  if File.exist?(file_picker_utils_h.to_s)
+    content = File.read(file_picker_utils_h.to_s)
+    unless content.include?('FlutterFilePickerUtils')
+      content = content.gsub(/\bFileUtils\b/, 'FlutterFilePickerUtils')
+      File.write(file_picker_utils_h.to_s, content)
+    end
   end
 end

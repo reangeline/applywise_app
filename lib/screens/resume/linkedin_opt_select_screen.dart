@@ -208,10 +208,12 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
       context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      builder: (sheetCtx) {
+        final theme = Theme.of(sheetCtx);
+        return Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 36),
         child: Column(
@@ -222,7 +224,7 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
               width: 40, height: 4,
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: theme.dividerColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -230,44 +232,44 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
             Container(
               width: 72, height: 72,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF0077B5), Color(0xFF00A0DC)]),
+                gradient: AppTheme.primaryGradient,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: const Icon(Icons.badge, color: Colors.white, size: 38),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'LinkedIn Optimization Started!',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: theme.textTheme.titleLarge?.copyWith(fontSize: 20),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               'AI is crafting your headline, about section, experiences and skills. You\'ll receive a push notification when it\'s ready.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
             const SizedBox(height: 24),
             // Where to find it
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF0077B5).withValues(alpha: 0.06),
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF0077B5).withValues(alpha: 0.2)),
+                border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.info_outline, size: 16, color: Color(0xFF0077B5)),
+                      Icon(Icons.info_outline, size: 16, color: AppTheme.primaryColor),
                       SizedBox(width: 6),
                       Text(
                         'Where to find your result',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF0077B5),
+                          color: AppTheme.primaryColor,
                           fontSize: 13,
                         ),
                       ),
@@ -300,7 +302,7 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
                   Navigator.of(ctx).pop(); // close select screen
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0077B5),
+                  backgroundColor: AppTheme.primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -309,7 +311,8 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
             ),
           ],
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -319,14 +322,17 @@ class _LinkedInOptSelectScreenState extends State<LinkedInOptSelectScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: const Color(0xFF0077B5).withValues(alpha: 0.12),
+            color: AppTheme.primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, size: 16, color: const Color(0xFF0077B5)),
+          child: Icon(icon, size: 16, color: AppTheme.primaryColor),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(label, style: const TextStyle(fontSize: 13, height: 1.4)),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 13, height: 1.4),
+          ),
         ),
       ],
     );

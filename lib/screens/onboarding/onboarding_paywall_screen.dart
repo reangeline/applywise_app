@@ -8,6 +8,7 @@ import '../../providers/onboarding_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../services/haptic_service.dart';
+import '../../services/revenue_cat_service.dart';
 import '../../widgets/app_spinner.dart';
 import '../home/home_screen.dart';
 import '../legal/privacy_policy_screen.dart';
@@ -52,16 +53,18 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
       });
     }
 
-    // Check if the user is already in a trial period
-    try {
-      final info = await Purchases.getCustomerInfo();
-      final entitlement = info.entitlements.active[AppConstants.proEntitlement];
-      if (entitlement != null && mounted) {
-        setState(() {
-          _isInTrial = entitlement.periodType == PeriodType.trial;
-        });
-      }
-    } catch (_) {}
+    // Check if the user is already in a trial period (only when SDK is configured)
+    if (RevenueCatService().isInitialized) {
+      try {
+        final info = await Purchases.getCustomerInfo();
+        final entitlement = info.entitlements.active[AppConstants.proEntitlement];
+        if (entitlement != null && mounted) {
+          setState(() {
+            _isInTrial = entitlement.periodType == PeriodType.trial;
+          });
+        }
+      } catch (_) {}
+    }
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -69,7 +72,9 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
   @override
   Widget build(BuildContext context) {
     final sub = context.watch<SubscriptionProvider>();
-    final score = context.read<OnboardingProvider>().atsResult?.score;
+    final atsResult = context.read<OnboardingProvider>().atsResult;
+    final score = atsResult?.score;
+    final totalIssues = atsResult?.totalIssues;
 
     if (sub.isLoading) {
       return Scaffold(
@@ -114,7 +119,7 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
           children: [
             if (_isInTrial)
               _buildTrialBanner(),
-            _buildHeader(context, score),
+            _buildHeader(context, score, totalIssues),
             const SizedBox(height: 28),
             _buildFeatures(context),
             const SizedBox(height: 28),
@@ -174,9 +179,15 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, int? score) {
-    final scoreText =
-        score != null ? 'Your resume has a score of $score/100' : 'Your resume';
+  Widget _buildHeader(BuildContext context, int? score, int? totalIssues) {
+    final String headline;
+    if (score != null && totalIssues != null) {
+      final n = totalIssues;
+      headline =
+          'Your resume scored $score/100 — fix $n issue${n == 1 ? '' : 's'} free for 7 days';
+    } else {
+      headline = 'Try Hirefy free for 7 days';
+    }
     return Column(
       children: [
         Container(
@@ -190,7 +201,7 @@ class _OnboardingPaywallScreenState extends State<OnboardingPaywallScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          '$scoreText — see the issues and fix them free for 7 days.',
+          headline,
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

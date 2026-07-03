@@ -145,7 +145,7 @@ class _ResumePdfUploadScreenState extends State<ResumePdfUploadScreen> {
                   decoration: BoxDecoration(
                     color: _selectedFileName != null
                         ? AppTheme.primaryColor.withValues(alpha: 0.06)
-                        : AppTheme.backgroundColor,
+                        : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: _selectedFileName != null
@@ -171,10 +171,10 @@ class _ResumePdfUploadScreenState extends State<ResumePdfUploadScreen> {
                       if (_selectedFileName != null) ...[
                         Text(
                           _selectedFileName!,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
                           textAlign: TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -185,20 +185,20 @@ class _ResumePdfUploadScreenState extends State<ResumePdfUploadScreen> {
                           child: const Text('Change file'),
                         ),
                       ] else ...[
-                        const Text(
+                        Text(
                           'Tap to choose a PDF',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Only PDF files are supported',
-                          style: TextStyle(
-                            color: AppTheme.textTertiary,
-                            fontSize: 13,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppTheme.textTertiary,
+                                fontSize: 13,
+                              ),
                         ),
                       ],
                     ],
@@ -259,17 +259,19 @@ class _ResumePdfUploadScreenState extends State<ResumePdfUploadScreen> {
               const Spacer(),
 
               if (_isParsing) ...[
-                const Center(
+                Center(
                   child: Column(
                     children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
                       Text(
                         'Parsing your resume…',
-                        style: TextStyle(fontWeight: FontWeight.w500),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
                       ),
-                      SizedBox(height: 4),
-                      Text(
+                      const SizedBox(height: 4),
+                      const Text(
                         'This may take a few seconds.',
                         style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                       ),

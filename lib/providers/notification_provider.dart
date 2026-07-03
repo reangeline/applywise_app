@@ -37,6 +37,12 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
+  /// Register a handler that is called whenever a push notification signals
+  /// that a resume/LinkedIn optimization has completed.
+  void setOptimizationCompleteHandler(Function(Map<String, dynamic>) handler) {
+    _notificationService.onOptimizationComplete = handler;
+  }
+
   void markAsRead(String id) {
     _notificationService.markAsRead(id);
     notifyListeners();
@@ -54,6 +60,12 @@ class NotificationProvider extends ChangeNotifier {
 
   void clearAll() {
     _notificationService.clearAll();
+    notifyListeners();
+  }
+
+  void reset() {
+    _notifications = [];
+    _notificationsEnabled = true;
     notifyListeners();
   }
 

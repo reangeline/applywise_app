@@ -12,6 +12,8 @@ class RevenueCatService {
   
   bool _isInitialized = false;
 
+  bool get isInitialized => _isInitialized;
+
   /// Inicializar RevenueCat com user ID
   Future<void> initialize(String userId) async {
     if (_isInitialized) {
@@ -39,6 +41,13 @@ class RevenueCatService {
 
   /// Buscar status da assinatura do usuário
   Future<Map<String, dynamic>> getSubscriptionStatus() async {
+    if (!_isInitialized) {
+      return {
+        'plan': 'free',
+        'status': 'active',
+        'features': {'basic_access': true, 'pro_access': false},
+      };
+    }
     try {
       
       final customerInfo = await Purchases.getCustomerInfo();
@@ -75,6 +84,7 @@ class RevenueCatService {
 
   /// Buscar pacotes de assinatura disponíveis
   Future<List<Package>> getAvailablePackages() async {
+    if (!_isInitialized) return [];
     try {
       
       final offerings = await Purchases.getOfferings();
@@ -93,6 +103,7 @@ class RevenueCatService {
 
   /// Comprar um pacote
   Future<bool> purchasePackage(Package package) async {
+    if (!_isInitialized) return false;
     try {
       
       final purchaseResult = await Purchases.purchase(
@@ -123,6 +134,7 @@ class RevenueCatService {
 
   /// Restaurar compras anteriores
   Future<bool> restorePurchases() async {
+    if (!_isInitialized) return false;
     try {
       
       final customerInfo = await Purchases.restorePurchases();
@@ -141,6 +153,7 @@ class RevenueCatService {
 
   /// Verificar se tem entitlement específico
   Future<bool> hasEntitlement(String entitlementId) async {
+    if (!_isInitialized) return false;
     try {
       final customerInfo = await Purchases.getCustomerInfo();
       return customerInfo.entitlements.all[entitlementId]?.isActive ?? false;
@@ -151,6 +164,7 @@ class RevenueCatService {
 
   /// Logout (limpar user ID)
   Future<void> logout() async {
+    if (!_isInitialized) return;
     try {
       await Purchases.logOut();
       _isInitialized = false;
@@ -160,6 +174,7 @@ class RevenueCatService {
 
   /// Buscar produtos de créditos (compras consumíveis)
   Future<List<StoreProduct>> getCreditProducts() async {
+    if (!_isInitialized) return [];
     try {
       
       final products = await Purchases.getProducts(
@@ -175,18 +190,18 @@ class RevenueCatService {
 
   /// Comprar produto de créditos (compra consumível)
   Future<bool> purchaseCreditProduct(StoreProduct product) async {
+    if (!_isInitialized) return false;
     try {
       
       final purchaseResult = await Purchases.purchaseStoreProduct(product);
       
-      // Para compras consumíveis, verificar se a transação foi registrada
-      final hasTransaction = purchaseResult.customerInfo.nonSubscriptionTransactions.isNotEmpty;
+      // Se purchaseStoreProduct não lançou exceção, a compra foi bem-sucedida.
+      // Verificar se o entitlement ou transação foi registrada como confirmação adicional.
+      final productId = product.identifier;
+      final hasNewTransaction = purchaseResult.customerInfo.nonSubscriptionTransactions
+          .any((t) => t.productIdentifier == productId);
       
-      if (hasTransaction) {
-      } else {
-      }
-      
-      return hasTransaction;
+      return hasNewTransaction;
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       

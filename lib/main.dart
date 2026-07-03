@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
 import 'providers/onboarding_provider.dart';
+import 'providers/pipeline_provider.dart';
 import 'providers/resume_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'providers/theme_provider.dart';
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => PipelineProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
@@ -94,6 +96,17 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (!mounted) return;
+
+    // Load persisted pipeline data
+    final pipelineProvider = Provider.of<PipelineProvider>(context, listen: false);
+    await pipelineProvider.load();
+
+    if (!mounted) return;
+
+    // Wire push-notification → pipeline card auto-update
+    notificationProvider.setOptimizationCompleteHandler(
+      pipelineProvider.handleOptimizationNotification,
+    );
 
     final storageService = StorageService();
     storageService.isFirstLaunch(); // keeps first-launch flag logic intact

@@ -14,6 +14,9 @@ class SubscriptionProvider with ChangeNotifier {
   bool _isPro = false;
   List<Package> _packages = [];
   int _credits = 0;
+  DateTime? _lastFetched;
+
+  static const _cacheTtl = Duration(minutes: 5);
 
   Subscription? get subscription => _subscription;
   bool get isLoading => _isLoading;
@@ -21,41 +24,45 @@ class SubscriptionProvider with ChangeNotifier {
   List<Package> get packages => _packages;
   int get credits => _credits;
 
-  Future<void> loadSubscription() async {
-    _isLoading = true;
-    notifyListeners();
+  bool get _isCacheFresh =>
+      _lastFetched != null &&
+      DateTime.now().difference(_lastFetched!) < _cacheTtl;
 
-    // Não tentar carregar subscription se não houver usuário logado
-    final storage = StorageService();
-    final currentUserId = storage.getUserId();
-    if (currentUserId == null || currentUserId.isEmpty) {
-      _isLoading = false;
-      notifyListeners();
+  Future<void> loadSubscription({bool force = false}) async {
+    // Cache fresh and not forced — instant return
+    if (!force && _isCacheFresh) return;
+
+    // Already have data and not forced — refresh silently in background
+    if (!force && _subscription != null) {
+      _fetchSubscription().catchError((_) {});
       return;
     }
 
+    // First load or forced — show loading indicator
+    _isLoading = true;
+    notifyListeners();
+    await _fetchSubscription();
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> _fetchSubscription() async {
+    final storage = StorageService();
+    final currentUserId = storage.getUserId();
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
     try {
-      // Load from backend
       _subscription = await _subscriptionService.getSubscription();
-      
-      // Check RevenueCat status
       final status = await _revenueCatService.getSubscriptionStatus();
       _isPro = status['plan'] == 'premium';
-      
-      // Load packages
       _packages = await _revenueCatService.getAvailablePackages();
-      
-      // Load credits (sempre carregar, mesmo se for PRO)
-      // Créditos ficam salvos para quando a assinatura expirar
       _credits = await _subscriptionService.getCredits();
-
+      _lastFetched = DateTime.now();
     } catch (e) {
       _isPro = false;
       _packages = [];
       _credits = 0;
     }
-
-    _isLoading = false;
     notifyListeners();
   }
 
@@ -68,7 +75,7 @@ class SubscriptionProvider with ChangeNotifier {
 
       if (success) {
         _isPro = true;
-        await loadSubscription();
+        await loadSubscription(force: true);
       }
 
       _isLoading = false;
@@ -91,7 +98,7 @@ class SubscriptionProvider with ChangeNotifier {
 
       if (success) {
         _isPro = true;
-        await loadSubscription();
+        await loadSubscription(force: true);
       }
 
       _isLoading = false;
@@ -120,5 +127,15 @@ class SubscriptionProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
     }
+  }
+
+  void reset() {
+    _subscription = null;
+    _isLoading = false;
+    _isPro = false;
+    _packages = [];
+    _credits = 0;
+    _lastFetched = null;
+    notifyListeners();
   }
 }

@@ -1,19 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/theme.dart';
-import '../../config/transitions.dart';
 import '../../widgets/app_spinner.dart';
 import '../../models/resume.dart';
+import '../../providers/pipeline_provider.dart';
 import '../../providers/resume_provider.dart';
 import '../../services/analytics_service.dart';
-import 'resume_add_screen.dart';
 import '../../providers/subscription_provider.dart';
 import '../../widgets/pro_feature_gate.dart';
+import 'resume_manual_form.dart';
+import 'resume_pdf_upload_screen.dart';
+import '../pipeline/add_job_confirm_screen.dart';
 
 class ResumeOptimizerScreen extends StatefulWidget {
   final String? initialJobDescription;
+  final String? initialResumeId;
+  final String? initialCompany;
+  final VoidCallback? onJobAdded;
 
-  const ResumeOptimizerScreen({super.key, this.initialJobDescription});
+  const ResumeOptimizerScreen({
+    super.key,
+    this.initialJobDescription,
+    this.initialResumeId,
+    this.initialCompany,
+    this.onJobAdded,
+  });
 
   @override
   State<ResumeOptimizerScreen> createState() => _ResumeOptimizerScreenState();
@@ -31,9 +42,15 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill job description if opened from Share Extension
+    // Pre-fill job description if opened from Share Extension or Add Job flow
     if (widget.initialJobDescription != null && widget.initialJobDescription!.isNotEmpty) {
       _jobDescriptionController.text = widget.initialJobDescription!;
+    }
+    if (widget.initialResumeId != null) {
+      _selectedResumeId = widget.initialResumeId;
+    }
+    if (widget.initialCompany != null && widget.initialCompany!.isNotEmpty) {
+      _companyController.text = widget.initialCompany!;
     }
     // load saved resumes after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,6 +69,11 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         widget.initialJobDescription != oldWidget.initialJobDescription) {
       _jobDescriptionController.text = widget.initialJobDescription!;
     }
+    if (widget.initialCompany != null &&
+        widget.initialCompany!.isNotEmpty &&
+        widget.initialCompany != oldWidget.initialCompany) {
+      _companyController.text = widget.initialCompany!;
+    }
   }
 
   @override
@@ -61,7 +83,7 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Optimize Resume'),
+        title: const Text('New Application'),
         automaticallyImplyLeading: false,
       ),
       body: ProFeatureGate(
@@ -79,8 +101,6 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildInfoCard(),
-                    const SizedBox(height: 24),
                     _buildResumeInput(resumeProvider),
                     const SizedBox(height: 24),
                     _buildJobTargetFields(),
@@ -98,41 +118,75 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
     );
   }
 
-  Widget _buildInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.primaryColor.withValues(alpha: 0.3),
-        ),
+  void _showNewResumeOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.lightbulb_outline,
-              color: Colors.white,
-              size: 20,
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add New Resume',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose how you want to create your resume.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 20),
+                _NewResumeOptionTile(
+                  icon: Icons.edit_note,
+                  iconColor: AppTheme.secondaryColor,
+                  title: 'Fill Manually',
+                  subtitle: 'Add your information step by step.',
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const ResumeManualForm()),
+                    );
+                    if (mounted) {
+                      await Provider.of<ResumeProvider>(context, listen: false)
+                          .loadResumes();
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                _NewResumeOptionTile(
+                  icon: Icons.picture_as_pdf,
+                  iconColor: AppTheme.primaryColor,
+                  title: 'Import PDF',
+                  subtitle: 'Upload a PDF and let AI pre-fill your resume.',
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const ResumePdfUploadScreen()),
+                    );
+                    if (mounted) {
+                      await Provider.of<ResumeProvider>(context, listen: false)
+                          .loadResumes();
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'AI will optimize your resume to match the job description',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.primaryDark,
-                  ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -146,18 +200,16 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              await Navigator.of(context).push(
-                  AppTransitions.slideRight(const ResumeAddScreen()));
-              // reload resumes after returning
-              await resumeProvider.loadResumes();
-            },
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: _showNewResumeOptions,
             icon: const Icon(Icons.add),
-            label: const Text('Add Resume'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryColor,
+            label: const Text('New Resume'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primaryColor,
+              side: const BorderSide(color: AppTheme.primaryColor),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
           ),
         ),
@@ -170,9 +222,11 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
   }
 
   Widget _buildResumesList(ResumeProvider resumeProvider) {
-    // Filtrar apenas currículos manuais
-    final manualResumes =
-        resumeProvider.resumes.where((r) => r.type == 'manual').toList();
+    // Show only manual resumes with actual content so partial optimization
+    // placeholders never appear in the manual picker.
+    final manualResumes = resumeProvider.resumes
+      .where((r) => r.type == 'manual' && _hasManualContent(r))
+      .toList();
 
     if (manualResumes.isEmpty) {
       return Container(
@@ -263,6 +317,19 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         if (_selectedResumeId != null) _buildResumePreview(manualResumes),
       ],
     );
+  }
+
+  bool _hasManualContent(Resume resume) {
+    final personal = resume.personal;
+    if (personal == null) return false;
+
+    final hasPersonal =
+        personal.fullName.isNotEmpty || personal.email.isNotEmpty;
+    final hasEntries =
+        (resume.experiences?.isNotEmpty == true) ||
+        (resume.education?.isNotEmpty == true);
+
+    return hasPersonal || hasEntries;
   }
 
   Widget _buildResumePreview(List<Resume> manualResumes) {
@@ -534,8 +601,12 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
 
     setState(() => _isLoading = true);
 
-    final company = _companyController.text.trim().isEmpty ? null : _companyController.text.trim();
-    final role = _targetRoleController.text.trim().isEmpty ? null : _targetRoleController.text.trim();
+    final company = _companyController.text.trim().isEmpty
+        ? null
+        : _companyController.text.trim();
+    final role = _targetRoleController.text.trim().isEmpty
+        ? null
+        : _targetRoleController.text.trim();
 
     AnalyticsService.instance.logResumeOptimizeStarted(
       targetCompany: company,
@@ -546,16 +617,14 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
       final selected =
           resumeProvider.resumes.firstWhere((r) => r.id == _selectedResumeId);
 
-      await resumeProvider.optimizeResume(
+      final optimized = await resumeProvider.optimizeResume(
         resumeId: selected.id,
         jobDescription: _jobDescriptionController.text,
-        targetCompany: _companyController.text.trim().isEmpty ? null : _companyController.text.trim(),
-        targetRole: _targetRoleController.text.trim().isEmpty ? null : _targetRoleController.text.trim(),
+        targetCompany: company,
+        targetRole: role,
       );
 
       if (!mounted) return;
-
-      // Limpar loading antes de navegar
       setState(() => _isLoading = false);
 
       AnalyticsService.instance.logResumeOptimizeSuccess(
@@ -563,25 +632,53 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
         targetRole: role,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Resume sent for optimization! It is being processed and will appear in your Optimized Resumes list shortly.',
-          ),
-          backgroundColor: AppTheme.successColor,
-          duration: Duration(seconds: 5),
-        ),
-      );
-      
-      // Resetar o formulário após envio bem-sucedido
+      // Build a display label for the resume used
+      final fullName = selected.personal?.fullName ?? '';
+      final resumeLabel = fullName.isNotEmpty
+          ? fullName
+          : (selected.nickname ?? 'My Resume');
+
+      // Save a pending job so the user can return to it via the Kanban
+      // even if they dismiss the confirm screen.
+      final pipeline = Provider.of<PipelineProvider>(context, listen: false);
+      final pendingJob = pipeline.addPendingJob(PendingJob(
+        id: '',
+        company: company ?? '',
+        role: role ?? '',
+        resumeId: optimized?.id ?? selected.id,
+        resumeLabel: optimized != null ? 'AI Optimized' : resumeLabel,
+        optimizedResume: optimized,
+      ));
+
+      // Reset form now so that if the user presses back from the confirm
+      // screen they land on a clean optimizer (tab 0 / home with Kanban).
       _jobDescriptionController.clear();
       _companyController.clear();
       _targetRoleController.clear();
       setState(() => _selectedResumeId = null);
-      
+      // Switch home to tab 0 before pushing — back gesture lands on Kanban,
+      // not on the optimizer form.
+      widget.onJobAdded?.call();
+
+      final navigator = Navigator.of(context);
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => AddJobConfirmScreen(
+            pendingJobId: pendingJob.id,
+            company: company ?? '',
+            role: role ?? '',
+            resumeId: optimized?.id ?? selected.id,
+            resumeLabel: optimized != null ? 'AI Optimized' : resumeLabel,
+            optimizedResume: optimized,
+            onJobAdded: () {
+              navigator.pop();
+              widget.onJobAdded?.call();
+            },
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-
       setState(() => _isLoading = false);
 
       AnalyticsService.instance.logResumeOptimizeError(e.toString());
@@ -602,5 +699,74 @@ class _ResumeOptimizerScreenState extends State<ResumeOptimizerScreen> {
     _companyController.dispose();
     _targetRoleController.dispose();
     super.dispose();
+  }
+}
+
+// ── _NewResumeOptionTile ───────────────────────────────────────────────────────
+
+class _NewResumeOptionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _NewResumeOptionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          border: Border.all(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.55))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withValues(alpha: 0.35)),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -152,9 +152,7 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
         const SizedBox(height: 8),
         Text(
           'Purchase credits to optimize your resumes',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.textSecondary,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium,
           textAlign: TextAlign.center,
         ),
       ],
@@ -209,7 +207,8 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
       children: sortedProducts.map((product) {
         final isSelected = _selectedProduct == product;
         final credits = _extractCreditsFromIdentifier(product.identifier);
-        
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         // Detectar se é o melhor valor (credits_20)
         final isBestValue = product.identifier.contains('20');
 
@@ -224,7 +223,7 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
               border: Border.all(
                 color: isSelected
                     ? AppTheme.primaryColor
-                    : AppTheme.borderColor,
+                    : (isDark ? AppTheme.darkBorder : AppTheme.borderColor),
                 width: isSelected ? 2 : 1,
               ),
               boxShadow: isSelected ? AppTheme.cardShadow : null,
@@ -237,7 +236,7 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
                       : Icons.radio_button_unchecked,
                   color: isSelected
                       ? AppTheme.primaryColor
-                      : AppTheme.textTertiary,
+                      : (isDark ? AppTheme.darkTextSecondary : AppTheme.textTertiary),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -280,9 +279,7 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
                       const SizedBox(height: 4),
                       Text(
                         '$credits Resume Optimizations',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -338,9 +335,7 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
   }
 
   Widget _buildInfoText() {
-    final textStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-      color: AppTheme.textTertiary,
-    );
+    final textStyle = Theme.of(context).textTheme.bodySmall;
     final linkStyle = textStyle?.copyWith(
       color: AppTheme.primaryColor,
       decoration: TextDecoration.underline,
@@ -387,8 +382,8 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
     try {
       final credits = _extractCreditsFromIdentifier(_selectedProduct!.identifier);
 
-      AnalyticsService.instance.logSubscriptionStarted(
-        packageId: _selectedProduct!.identifier,
+      AnalyticsService.instance.logCreditsPurchaseStarted(
+        productId: _selectedProduct!.identifier,
       );
 
       final success = await _revenueCatService.purchaseCreditProduct(_selectedProduct!);
@@ -398,8 +393,9 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
       setState(() => _isPurchasing = false);
 
       if (success) {
-        AnalyticsService.instance.logSubscriptionPurchased(
-          packageId: _selectedProduct!.identifier,
+        AnalyticsService.instance.logCreditsPurchased(
+          productId: _selectedProduct!.identifier,
+          creditsAmount: credits,
         );
         
         // Aguardar um pouco para o webhook processar
@@ -424,6 +420,9 @@ class _CreditsPaywallScreenState extends State<CreditsPaywallScreen> {
           Navigator.pop(context, true); // Retorna true para indicar sucesso
         }
       } else {
+        AnalyticsService.instance.logCreditsPurchaseFailed(
+          productId: _selectedProduct!.identifier,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Purchase failed. Please try again.'),

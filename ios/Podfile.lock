@@ -195,9 +195,17 @@ PODS:
   - purchases_flutter (9.10.7):
     - Flutter
     - PurchasesHybridCommon (= 17.28.1)
+  - purchases_ui_flutter (9.10.7):
+    - Flutter
+    - PurchasesHybridCommonUI (= 17.28.1)
   - PurchasesHybridCommon (17.28.1):
     - RevenueCat (= 5.55.2)
+  - PurchasesHybridCommonUI (17.28.1):
+    - PurchasesHybridCommon (= 17.28.1)
+    - RevenueCatUI (= 5.55.2)
   - RevenueCat (5.55.2)
+  - RevenueCatUI (5.55.2):
+    - RevenueCat (= 5.55.2)
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
@@ -225,6 +233,7 @@ DEPENDENCIES:
   - home_widget (from `.symlinks/plugins/home_widget/ios`)
   - printing (from `.symlinks/plugins/printing/ios`)
   - purchases_flutter (from `.symlinks/plugins/purchases_flutter/ios`)
+  - purchases_ui_flutter (from `.symlinks/plugins/purchases_ui_flutter/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sign_in_with_apple (from `.symlinks/plugins/sign_in_with_apple/ios`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
@@ -252,7 +261,9 @@ SPEC REPOS:
     - nanopb
     - PromisesObjC
     - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
     - RevenueCat
+    - RevenueCatUI
     - SDWebImage
     - SwiftyGif
 
@@ -279,6 +290,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/printing/ios"
   purchases_flutter:
     :path: ".symlinks/plugins/purchases_flutter/ios"
+  purchases_ui_flutter:
+    :path: ".symlinks/plugins/purchases_ui_flutter/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   sign_in_with_apple:
@@ -319,8 +332,11 @@ SPEC CHECKSUMS:
   printing: 54ff03f28fe9ba3aa93358afb80a8595a071dd07
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   purchases_flutter: ab44f120d5d2278734ce0ee156685ec41bea6521
+  purchases_ui_flutter: 50c9a4380e1fae335e5fb0ab61905b5ae78d97b1
   PurchasesHybridCommon: 57e9e2fd474a726c41f61d5359f1bc05d89d9be8
+  PurchasesHybridCommonUI: ad685a661cc19fb45f1d7448f5890b399e177e14
   RevenueCat: b5605778017c179315e60b8921ed158b3428688c
+  RevenueCatUI: ee8109669a5abf52df099788a0f961abdd2b5b09
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sign_in_with_apple: c5dcc141574c8c54d5ac99dd2163c0c72ad22418
@@ -328,6 +344,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
 
-PODFILE CHECKSUM: 1857a7cdb7dfafe45f2b0e9a9af44644190f7506
+PODFILE CHECKSUM: 817c50172dd252568a1748ce399f22e61e63bbfa
 
 COCOAPODS: 1.16.2

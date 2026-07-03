@@ -6,6 +6,7 @@ import '../../providers/resume_provider.dart';
 import '../../models/resume.dart';
 import '../../services/analytics_service.dart';
 import '../../services/pdf_service.dart';
+import '../../widgets/skeleton_loader.dart';
 import 'resume_manual_form.dart';
 import 'resume_pdf_upload_screen.dart';
 import 'linkedin_carousel_screen.dart';
@@ -42,15 +43,28 @@ class _ResumeListScreenState extends State<ResumeListScreen>
     super.dispose();
   }
 
-  Future<void> _loadResumes() async {
+  Future<void> _loadResumes({bool force = false}) async {
     final resumeProvider = Provider.of<ResumeProvider>(context, listen: false);
-    await resumeProvider.loadResumes();
+    await resumeProvider.loadResumes(force: force);
   }
 
   bool _hasOptimizedData(Resume resume) {
     return (resume.optimizedText?.isNotEmpty == true) ||
         (resume.suggestions?.isNotEmpty == true) ||
         resume.score != null;
+  }
+
+  bool _hasContent(Resume resume) {
+    if (resume.type == 'linkedin') return resume.linkedInData != null;
+    if (resume.type == 'manual') {
+      final p = resume.personal;
+      if (p == null) return false;
+      final hasPersonal = p.fullName.isNotEmpty || p.email.isNotEmpty;
+      final hasEntries = (resume.experiences?.isNotEmpty == true) ||
+          (resume.education?.isNotEmpty == true);
+      return hasPersonal || hasEntries;
+    }
+    return _hasOptimizedData(resume);
   }
 
   bool _isOptimizedResume(Resume resume) {
@@ -142,8 +156,8 @@ class _ResumeListScreenState extends State<ResumeListScreen>
 
     // Filtrar currículos baseado na aba selecionada
     final filteredResumes = _tabController.index == 0
-        ? resumeProvider.resumes.where(_isManualResume).toList()
-        : resumeProvider.resumes.where(_isOptimizedResume).toList();
+        ? resumeProvider.resumes.where((r) => _isManualResume(r) && _hasContent(r)).toList()
+        : resumeProvider.resumes.where((r) => _isOptimizedResume(r) && _hasContent(r)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -172,11 +186,11 @@ class _ResumeListScreenState extends State<ResumeListScreen>
           : null,
       body: SafeArea(
         child: resumeProvider.isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const ResumeListSkeleton()
             : filteredResumes.isEmpty
                 ? _buildEmptyState()
                 : RefreshIndicator(
-                    onRefresh: _loadResumes,
+                    onRefresh: () => _loadResumes(force: true),
                     child: ListView.builder(
                       padding: const EdgeInsets.all(24),
                       itemCount: filteredResumes.length,
@@ -237,6 +251,9 @@ class _ResumeListScreenState extends State<ResumeListScreen>
     final isManual = _isManualResume(resume);
     final isLinkedIn = _isLinkedInResume(resume);
     const linkedInBlue = Color(0xFF0077B5);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardSurface = Theme.of(context).colorScheme.surface;
+    final cardBorder = isDark ? AppTheme.darkBorder : AppTheme.borderColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -246,7 +263,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
             ? Colors.blue.withValues(alpha: 0.03)
             : isLinkedIn
                 ? const Color(0xFF0077B5).withValues(alpha: 0.03)
-                : AppTheme.surfaceColor,
+                : cardSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
@@ -254,7 +271,7 @@ class _ResumeListScreenState extends State<ResumeListScreen>
                 ? Colors.blue.shade200
                 : isLinkedIn
                     ? const Color(0xFF0077B5).withValues(alpha: 0.35)
-                    : AppTheme.borderColor,
+                    : cardBorder,
             width: isManual || isLinkedIn ? 2 : 1,
           ),
         ),

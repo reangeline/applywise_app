@@ -37,11 +37,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Applicant Tracking Systems automatically reject resumes before a human sees them.',
     ),
     OnboardingPage(
-      imagePath: 'assets/images/onbording/onbording_2.png',
-      title: 'Great experience. No interviews.',
-      description: 'Design, photos, and generic resumes often fail automated screening.',
-    ),
-    OnboardingPage(
       imagePath: 'assets/images/onbording/onbording_3.png',
       title: 'We fix your resume for hiring systems',
       description:
@@ -92,17 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Text(_currentPage == _pages.length - 1 ? 'Get Started' : 'Next'),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  if (_currentPage < _pages.length - 1)
-                    TextButton(
-                      onPressed: () {
-                        AnalyticsService.instance.logOnboardingSkipped(
-                          atStep: _currentPage,
-                        );
-                        _navigateToLogin();
-                      },
-                      child: const Text('Skip'),
-                    ),
+
                 ],
               ),
             ),

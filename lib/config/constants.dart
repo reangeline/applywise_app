@@ -26,6 +26,10 @@ class AppConstants {
   static const String deleteAccountEndpoint = '/api/v1/users/me';
   static const String socialAuthEndpoint = '/api/v1/auth/social';
 
+  // Pipeline endpoints
+  static const String pipelineEndpoint = '/api/v1/pipeline';
+  static const String pipelineCoachEndpoint = '/api/v1/pipeline';
+
 
   // RevenueCat Configuration — injetado via --dart-define-from-file
   static const String revenueCatApiKey = String.fromEnvironment(

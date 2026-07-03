@@ -18,11 +18,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   String? _sharedJobText;
 
+  // Memoized screens that must not be recreated on every build.
+  // HomeDashboard and ResumeListScreen are stable — recreating them
+  // would trigger initState/_loadData again and create extra provider reads.
+  late final HomeDashboard _homeDashboard;
+  late final ResumeListScreen _resumeListScreen;
+  late final SettingsScreen _settingsScreen;
+
   static const _screenNames = ['home', 'resumes', 'optimizer', 'settings'];
 
   @override
   void initState() {
     super.initState();
+    _homeDashboard = HomeDashboard(
+      onAddJobTap: () => setState(() => _currentIndex = 2),
+    );
+    _resumeListScreen = const ResumeListScreen();
+    _settingsScreen = const SettingsScreen();
     WidgetsBinding.instance.addObserver(this);
     AnalyticsService.instance.logScreenView('home');
     // Check for shared text when the screen first loads
@@ -54,17 +66,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  List<Widget> get _screens => [
-    const HomeDashboard(),
-    const ResumeListScreen(),
-    ResumeOptimizerScreen(initialJobDescription: _sharedJobText),
-    const SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      // IndexedStack keeps all screens in the widget tree (just hidden) so
+      // switching tabs never destroys State — HomeDashboard's initState and
+      // _loadData are called exactly once for the lifetime of HomeScreen.
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _homeDashboard,
+          _resumeListScreen,
+          ResumeOptimizerScreen(
+            initialJobDescription: _sharedJobText,
+            onJobAdded: () => setState(() => _currentIndex = 0),
+          ),
+          _settingsScreen,
+        ],
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [

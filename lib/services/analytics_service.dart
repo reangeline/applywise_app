@@ -214,6 +214,36 @@ class AnalyticsService {
     );
   }
 
+  /// Credit purchase flow was initiated (buy credits button pressed).
+  Future<void> logCreditsPurchaseStarted({required String productId}) async {
+    await _analytics.logEvent(
+      name: 'credits_purchase_started',
+      parameters: {'product_id': productId},
+    );
+  }
+
+  /// Credit purchase completed successfully (one-time in-app purchase, not a subscription).
+  Future<void> logCreditsPurchased({
+    required String productId,
+    required int creditsAmount,
+  }) async {
+    await _analytics.logEvent(
+      name: 'credits_purchased',
+      parameters: {
+        'product_id': productId,
+        'credits_amount': creditsAmount,
+      },
+    );
+  }
+
+  /// Credit purchase failed or was cancelled.
+  Future<void> logCreditsPurchaseFailed({required String productId}) async {
+    await _analytics.logEvent(
+      name: 'credits_purchase_failed',
+      parameters: {'product_id': productId},
+    );
+  }
+
   /// Purchase completed successfully.
   Future<void> logSubscriptionPurchased({required String packageId}) async {
     await _analytics.logEvent(

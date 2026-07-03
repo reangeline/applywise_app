@@ -2,11 +2,13 @@ import '../config/constants.dart';
 import '../models/resume.dart';
 import 'api_service.dart';
 import 'auth_service.dart';
+import 'notification_service.dart';
 import 'storage_service.dart';
 
 class ResumeService {
   final ApiService _apiService = ApiService();
   final AuthService _authService = AuthService();
+  final NotificationService _notificationService = NotificationService();
   final StorageService _storageService = StorageService();
 
   Future<Resume?> optimizeResume({
@@ -16,6 +18,14 @@ class ResumeService {
     String? targetRole,
   }) async {
     try {
+      final pushReady = await _notificationService
+          .ensurePushRegistrationForCurrentSession();
+      if (!pushReady) {
+        throw Exception(
+          'Push notifications are not ready for this session yet. Please try again in a moment.',
+        );
+      }
+
       final token = await _storageService.getAccessToken();
       if (token == null) return null;
 
@@ -38,7 +48,158 @@ class ResumeService {
     }
   }
 
+  /// Polls until the backend optimization is complete or [maxAttempts] is reached.
+  ///
+  /// Strategy:
+  ///  1. Try [GET /api/v1/resumes/optimized/{id}] directly.
+  ///  2. If that returns a still-pending response, fall back to scanning the
+  ///     list endpoint [GET /api/v1/resumes/optimized] for the matching ID.
+  ///  3. Completion is detected by presence of a score, non-empty suggestions,
+  ///     non-empty optimized_text, OR a non-pending status value.
+  Future<Resume> pollOptimizedResume(
+    String jobOrResumeId, {
+    int maxAttempts = 24,
+    Duration interval = const Duration(seconds: 5),
+  }) async {
+    final token = await _storageService.getAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    for (var i = 0; i < maxAttempts; i++) {
+      await Future.delayed(interval);
+
+      // ── 1. Job status endpoint — the ID returned by POST /optimize is a job ID ──
+      try {
+        final jobResp = await _apiService.get(
+          '${AppConstants.optimizeJobsEndpoint}/$jobOrResumeId',
+          token: token,
+        );
+        final status = jobResp['status']?.toString().toLowerCase();
+        final optimizedResumeId = jobResp['optimized_resume_id']?.toString();
+
+        if (status == 'completed' &&
+            optimizedResumeId != null &&
+            optimizedResumeId.isNotEmpty) {
+          // Worker finished — fetch the actual optimized resume
+          final resumeResp = await _apiService.get(
+            '${AppConstants.resumesEndpoint}/optimized/$optimizedResumeId',
+            token: token,
+          );
+          return Resume.fromJson(resumeResp);
+        }
+        // Job still queued/processing — wait for next cycle
+        continue;
+      } catch (_) {
+        // Not a job ID — fall through to legacy resume-ID strategies
+      }
+
+      // ── 2. Direct optimized resume endpoint (legacy: id is already resume id) ──
+      try {
+        final response = await _apiService.get(
+          '${AppConstants.resumesEndpoint}/optimized/$jobOrResumeId',
+          token: token,
+        );
+        if (_resumeIsComplete(response)) {
+          return Resume.fromJson(response);
+        }
+      } catch (_) {}
+
+      // ── 3. List endpoint fallback ────────────────────────────────────────
+      try {
+        final listResp = await _apiService.getRaw(
+          '${AppConstants.resumesEndpoint}/optimized',
+          token: token,
+        );
+        if (listResp is List) {
+          final match = listResp
+              .whereType<Map<String, dynamic>>()
+              .where((r) => (r['id'] ?? r['ID'])?.toString() == jobOrResumeId)
+              .firstOrNull;
+          if (match != null && _resumeIsComplete(match)) {
+            return Resume.fromJson(match);
+          }
+        }
+      } catch (_) {}
+    }
+    throw Exception('Optimization timed out after ${maxAttempts * interval.inSeconds}s');
+  }
+
+  /// Returns true when a raw JSON response represents a fully-processed resume.
+  bool _resumeIsComplete(Map<String, dynamic> r) {
+    final status = r['status']?.toString().toLowerCase();
+    final stillPending = status == 'processing' ||
+        status == 'pending' ||
+        status == 'queued' ||
+        status == 'started' ||
+        status == 'running';
+    if (stillPending) return false;
+
+    // Check all known locations for score/suggestions/text
+    final score = r['score'] ?? r['match_score'] ?? r['MatchScore'];
+    final hasScore = score != null && (score is! num || score > 0);
+    final optimizedText = r['optimized_text'] ?? r['optimized_content'] ?? r['OptimizedContent'];
+    final hasText = optimizedText is String && optimizedText.isNotEmpty;
+    final rawSuggestions = r['suggestions'] ?? r['Suggestions'];
+    final hasSuggestions = rawSuggestions is List && rawSuggestions.isNotEmpty;
+    final pd = r['parsed_data'] ?? r['ParsedData'];
+    final hasNestedScore = pd is Map &&
+        (pd['score'] != null || pd['match_score'] != null) &&
+        (pd['score'] is! num || (pd['score'] as num) > 0);
+    final hasNestedSuggestions =
+        pd is Map && pd['suggestions'] is List && (pd['suggestions'] as List).isNotEmpty;
+
+    return hasScore || hasText || hasSuggestions || hasNestedScore || hasNestedSuggestions;
+  }
+
+  /// Single-shot fetch for a completed optimization.
+  /// Tries the job-status endpoint first (id may be a job_id), then falls back
+  /// to the optimized-resume endpoint. Returns null on any error.
+  Future<Resume?> fetchCompletedOptimization(String id) async {
+    try {
+      final token = await _storageService.getAccessToken();
+      if (token == null) return null;
+
+      // 1. Try job-status endpoint — id might be a job_id
+      try {
+        final jobResp = await _apiService.get(
+          '${AppConstants.optimizeJobsEndpoint}/$id',
+          token: token,
+        );
+        final status = jobResp['status']?.toString().toLowerCase();
+        final optimizedResumeId = jobResp['optimized_resume_id']?.toString();
+        if (status == 'completed' &&
+            optimizedResumeId != null &&
+            optimizedResumeId.isNotEmpty) {
+          final resumeResp = await _apiService.get(
+            '${AppConstants.resumesEndpoint}/optimized/$optimizedResumeId',
+            token: token,
+          );
+          return Resume.fromJson(resumeResp);
+        }
+      } catch (_) {}
+
+      // 2. Try direct optimized-resume endpoint — id might already be the resume id
+      try {
+        final resumeResp = await _apiService.get(
+          '${AppConstants.resumesEndpoint}/optimized/$id',
+          token: token,
+        );
+        if (_resumeIsComplete(resumeResp)) {
+          return Resume.fromJson(resumeResp);
+        }
+      } catch (_) {}
+    } catch (_) {}
+    return null;
+  }
+
   Future<String> startLinkedInOptimize({required String resumeId}) async {
+    final pushReady =
+        await _notificationService.ensurePushRegistrationForCurrentSession();
+    if (!pushReady) {
+      throw Exception(
+        'Push notifications are not ready for this session yet. Please try again in a moment.',
+      );
+    }
+
     final token = await _storageService.getAccessToken();
     if (token == null) throw Exception('Not authenticated');
 

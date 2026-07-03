@@ -158,25 +158,51 @@ class _ManualResumeStepperScreenState
         },
         controlsBuilder: (context, details) {
           final isLast = _currentStep == 4;
+          final isOptional = _currentStep == 2 || _currentStep == 3;
           return Padding(
             padding: const EdgeInsets.only(top: 16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: details.onStepContinue,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: details.onStepContinue,
+                        child: Text(
+                          isLast ? 'Analyze Resume' : 'Continue',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton(
+                      onPressed: details.onStepCancel,
+                      child: Text(
+                        _currentStep == 0 ? 'Cancel' : 'Back',
+                      ),
+                    ),
+                  ],
+                ),
+                if (isOptional) ...[
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: () {
+                      if (_currentStep < 4) {
+                        setState(() => _currentStep++);
+                      } else {
+                        _submit();
+                      }
+                    },
                     child: Text(
-                      isLast ? 'Analyze Resume' : 'Continue',
+                      'Skip for now',
+                      style: TextStyle(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outline,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: details.onStepCancel,
-                  child: Text(
-                    _currentStep == 0 ? 'Cancel' : 'Back',
-                  ),
-                ),
+                ],
               ],
             ),
           );

@@ -3,12 +3,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 import '../services/revenue_cat_service.dart';
 import '../services/api_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   final RevenueCatService _revenueCatService = RevenueCatService();
+  final NotificationService _notificationService = NotificationService();
 
   AuthProvider() {
     // Register global token refresher so ApiService can retry on 401
@@ -19,9 +21,27 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _handleSessionExpired() async {
     await _authService.signOut();
+    await _revenueCatService.logout();
+    _notificationService.resetPushRegistrationState();
     _user = null;
     _isAuthenticated = false;
     notifyListeners();
+  }
+
+  Future<void> _finalizeAuthenticatedSession() async {
+    if (_user == null) return;
+
+    try {
+      await _revenueCatService.initialize(_user!.id);
+    } catch (e) {
+      debugPrint('Failed to initialize RevenueCat: $e');
+    }
+
+    final registered = await _notificationService
+        .ensurePushRegistrationForCurrentSession(force: true);
+    if (!registered) {
+      debugPrint('FCM token registration not confirmed for current session');
+    }
   }
 
   User? _user;
@@ -39,14 +59,8 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticated = await _authService.isAuthenticated();
     if (_isAuthenticated) {
       _user = await _authService.getCurrentUser();
-      
-      // Initialize RevenueCat if authenticated
       if (_user != null) {
-        try {
-          await _revenueCatService.initialize(_user!.id);
-        } catch (e) {
-          debugPrint('Failed to initialize RevenueCat: $e');
-        }
+        await _finalizeAuthenticatedSession();
       }
     }
 
@@ -81,13 +95,7 @@ class AuthProvider with ChangeNotifier {
     if (result.success && result.user != null) {
       _user = result.user;
       _isAuthenticated = true;
-      
-      // Initialize RevenueCat after signup
-      try {
-        await _revenueCatService.initialize(_user!.id);
-      } catch (e) {
-        debugPrint('Failed to initialize RevenueCat: $e');
-      }
+      await _finalizeAuthenticatedSession();
     }
 
     _isLoading = false;
@@ -111,13 +119,7 @@ class AuthProvider with ChangeNotifier {
     if (result.success && result.user != null) {
       _user = result.user;
       _isAuthenticated = true;
-      
-      // Initialize RevenueCat after signin
-      try {
-        await _revenueCatService.initialize(_user!.id);
-      } catch (e) {
-        debugPrint('Failed to initialize RevenueCat: $e');
-      }
+      await _finalizeAuthenticatedSession();
     }
 
     _isLoading = false;
@@ -128,6 +130,8 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> signOut() async {
     await _authService.signOut();
+    await _revenueCatService.logout();
+    _notificationService.resetPushRegistrationState();
     _user = null;
     _isAuthenticated = false;
     notifyListeners();
@@ -156,6 +160,8 @@ class AuthProvider with ChangeNotifier {
     final result = await _authService.deleteAccount();
 
     if (result.success) {
+      await _revenueCatService.logout();
+      _notificationService.resetPushRegistrationState();
       _user = null;
       _isAuthenticated = false;
     }
@@ -257,11 +263,7 @@ class AuthProvider with ChangeNotifier {
       if (result.success && result.user != null) {
         _user = result.user;
         _isAuthenticated = true;
-        try {
-          await _revenueCatService.initialize(_user!.id);
-        } catch (e) {
-          debugPrint('Failed to initialize RevenueCat: $e');
-        }
+        await _finalizeAuthenticatedSession();
       }
       return result;
     } catch (e) {
@@ -304,11 +306,7 @@ class AuthProvider with ChangeNotifier {
       if (result.success && result.user != null) {
         _user = result.user;
         _isAuthenticated = true;
-        try {
-          await _revenueCatService.initialize(_user!.id);
-        } catch (e) {
-          debugPrint('Failed to initialize RevenueCat: $e');
-        }
+        await _finalizeAuthenticatedSession();
       }
       return result;
     } catch (e) {

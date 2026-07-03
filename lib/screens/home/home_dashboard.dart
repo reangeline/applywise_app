@@ -5,9 +5,11 @@ import '../../config/transitions.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../providers/resume_provider.dart';
+import '../../providers/pipeline_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../services/analytics_service.dart';
 import '../../services/haptic_service.dart';
+import '../../widgets/pipeline_section.dart';
 import '../../widgets/skeleton_loader.dart';
 import '../../services/widget_service.dart';
 import '../subscription/paywall_screen.dart';
@@ -18,7 +20,9 @@ import '../resume/linkedin_opt_select_screen.dart';
 import 'notifications_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
-  const HomeDashboard({super.key});
+  final VoidCallback? onAddJobTap;
+
+  const HomeDashboard({super.key, this.onAddJobTap});
 
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
@@ -49,14 +53,18 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool force = false}) async {
+    debugPrint('🟠 HomeDashboard._loadData(force=$force) — hashCode=${hashCode}');
     final resumeProvider = Provider.of<ResumeProvider>(context, listen: false);
     final subscriptionProvider =
         Provider.of<SubscriptionProvider>(context, listen: false);
+    final pipelineProvider =
+        Provider.of<PipelineProvider>(context, listen: false);
 
     await Future.wait([
-      resumeProvider.loadResumes(),
-      subscriptionProvider.loadSubscription(),
+      resumeProvider.loadResumes(force: force),
+      subscriptionProvider.loadSubscription(force: force),
+      if (force) pipelineProvider.refresh(),
     ]);
 
     // Push latest data to iOS home screen widget
@@ -103,10 +111,11 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
     return Scaffold(
       body: SafeArea(
-        child: subscriptionProvider.isLoading || resumeProvider.isLoading
+        child: (subscriptionProvider.isLoading && subscriptionProvider.subscription == null) ||
+               (resumeProvider.isLoading && resumeProvider.resumes.isEmpty)
             ? const HomeDashboardSkeleton()
             : RefreshIndicator(
-          onRefresh: _loadData,
+          onRefresh: () => _loadData(force: true),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(24),
@@ -123,6 +132,8 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
                 const SizedBox(height: 24),
                 _buildSubscriptionCard(subscriptionProvider),
+                const SizedBox(height: 24),
+                PipelineSection(onAddJobTap: widget.onAddJobTap),
                 const SizedBox(height: 24),
                 _buildQuickActions(subscriptionProvider),
                 const SizedBox(height: 24),
