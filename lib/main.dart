@@ -88,9 +88,17 @@ class _SplashScreenState extends State<SplashScreen> {
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
     await authProvider.checkAuthStatus();
 
-    // Inicializa notificações cedo para mostrar o prompt de permissão
+    // Inicializa notificações cedo para mostrar o prompt de permissão.
+    // Timeout defensivo: em alguns browsers, FirebaseMessaging.requestPermission()
+    // nunca resolve se não houver decisão de permissão salva e nenhum gesto do
+    // usuário disparar o prompt — sem o timeout, isso trava o boot inteiro na splash.
     try {
-      await notificationProvider.initialize();
+      await notificationProvider.initialize().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ Notifications init timed out — continuing without push');
+        },
+      );
     } catch (e) {
       debugPrint('⚠️ Notifications init skipped: $e');
     }
