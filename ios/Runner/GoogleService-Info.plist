@@ -2,22 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CLIENT_ID</key>
-	<string>965130705733-22t60qs9gn7psbo69m366vojhn75uv59.apps.googleusercontent.com</string>
-	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.965130705733-22t60qs9gn7psbo69m366vojhn75uv59</string>
 	<key>API_KEY</key>
-	<string>AIzaSyCwjq4gK-pydmkyEoTpbwqq09jpDd432xA</string>
+	<string>AIzaSyA9-cGt2ofUDzpDiAN8aJ3kKQ_BxfW1c9E</string>
 	<key>GCM_SENDER_ID</key>
-	<string>965130705733</string>
+	<string>878209621424</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>careers.hirefy.app</string>
 	<key>PROJECT_ID</key>
-	<string>applywise-35cc7</string>
+	<string>hirefy-eb833</string>
 	<key>STORAGE_BUCKET</key>
-	<string>applywise-35cc7.firebasestorage.app</string>
+	<string>hirefy-eb833.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -29,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:965130705733:ios:9217ada8f447497fd77c2c</string>
+	<string>1:878209621424:ios:03ef00a4fd5de20b100a75</string>
 </dict>
 </plist>

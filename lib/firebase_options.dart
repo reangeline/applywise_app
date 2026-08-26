@@ -23,10 +23,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -56,19 +53,27 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDItJQMzv_jdUe5qYt_Qxa_zlFbO8qFq_0',
-    appId: '1:965130705733:android:1c75469fdd0f67a2d77c2c',
-    messagingSenderId: '965130705733',
-    projectId: 'applywise-35cc7',
-    storageBucket: 'applywise-35cc7.firebasestorage.app',
+    apiKey: 'AIzaSyDOU0z7Lz2oK9kH55Xw9bPpsbtKksVYnu8',
+    appId: '1:878209621424:android:6629e3ac00510b04100a75',
+    messagingSenderId: '878209621424',
+    projectId: 'hirefy-eb833',
+    storageBucket: 'hirefy-eb833.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCwjq4gK-pydmkyEoTpbwqq09jpDd432xA',
-    appId: '1:965130705733:ios:9217ada8f447497fd77c2c',
-    messagingSenderId: '965130705733',
-    projectId: 'applywise-35cc7',
-    storageBucket: 'applywise-35cc7.firebasestorage.app',
+    apiKey: 'AIzaSyA9-cGt2ofUDzpDiAN8aJ3kKQ_BxfW1c9E',
+    appId: '1:878209621424:ios:03ef00a4fd5de20b100a75',
+    messagingSenderId: '878209621424',
+    projectId: 'hirefy-eb833',
+    storageBucket: 'hirefy-eb833.firebasestorage.app',
     iosBundleId: 'careers.hirefy.app',
+  );
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDUbabNiPXCGiYJSEzaQ_FTEVgpE97yvtw',
+    appId: '1:878209621424:web:d3687a6cdc9d32a9100a75',
+    messagingSenderId: '878209621424',
+    projectId: 'hirefy-eb833',
+    authDomain: 'hirefy-eb833.firebaseapp.com',
+    storageBucket: 'hirefy-eb833.firebasestorage.app',
+    measurementId: 'G-XTVX7B99SX',
   );
 }
